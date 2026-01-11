@@ -8,6 +8,8 @@ initialize_oci() {
   log "==> (oci) getting oras login credentials"
   aws ecr get-login-password --region us-east-2 --profile "${AWS_BASE_PROFILE}" | \
     oras login --username AWS --password-stdin "${OCI_REGISTRY}"
+
+  ctx_materialize_resolved_refs
 }
 
 oci_write_default_annotations_json() {
@@ -59,12 +61,12 @@ oci_push_component_artifact() {
   IFS=" " read -r digest mediaType size pushed_at <<<"$result"
   log "==> (oci) pushed component=${component} pkey=${pkey} digest=${digest} mediaType=${mediaType} size=${size} pushed_at=${pushed_at}"
 
-  ctx_artifact_set_oci_pushed "$component" "$platform" "$digest" "$mediaType" "$size" "$pushed_at"
+  ctx_artifact_set_oci_pushed "$component" "$pkey" "$digest" "$mediaType" "$size" "$pushed_at"
 }
 
 oci_push_binary() {
   # args: registry repo tag artifactType os arch local_path component
-  # prints: digest mediaType descriptor_size pushed_at
+  # prints: digest mediaType size pushed_at
   local component="$1"
   local file_path="$2"
   local registry="$3"
@@ -237,7 +239,7 @@ oci_push_component_index() {
   # Build subject digest refs from ctx manifests
   local subject_refs=()
   local pkey digest
-  for pkey in $(ctx_list_platform_keys "$component"); do
+  for pkey in $(ctx_list_realized_platform_keys "$component"); do
     digest="$(ctx_get_artifact_digest "$component" "$pkey")"
     [[ -z "$digest" || "$digest" == "null" ]] && continue
     subject_refs+=( "${registry}/${repo}@${digest}" )

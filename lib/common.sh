@@ -18,7 +18,6 @@ add_to_array() {
   jq --argjson o "$2" '. + [$o]' <<<"$1"
 }
 
-
 redact_arg() {
   local a="$1"
   case "$a" in

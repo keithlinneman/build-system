@@ -64,7 +64,7 @@ generate_inventory_json() {
   while IFS= read -r comp; do
     [[ -n "$comp" ]] || continue
     components="$(jq --arg k "$comp" --argjson v "$(build_component_obj "$comp")" '. + {($k):$v}' <<<"$components")"
-  done < <(discover_components)
+  done < <( ctx_list_components )
 
   # ---------- build files[] inventory ----------
   local files='[]'

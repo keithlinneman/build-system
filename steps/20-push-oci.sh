@@ -22,7 +22,7 @@ initialize_oci
 log "==> (oci) preparing to iterate artifacts to push to registry"
 for component in $( ctx_list_components );do
   log "==> (oci) pushing OCI artifacts for component:${component}"
-  for platkey in $( ctx_list_platform_keys "${component}" );do
+  for platkey in $( ctx_list_realized_platform_keys "${component}" );do
     oci_push_component_artifact "${component}" "${platkey}"
   done
 

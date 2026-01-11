@@ -153,7 +153,7 @@ cosign_attest_predicate() {
 
   # Common flags (adjust to your model)
   cosign attest --yes \
-    --key "${COSIGN_KEY}" \
+    --key "${SIGNER_URI}" \
     --predicate "${predicate_path}" \
     --type "${predicate_type}" \
     --tlog-upload=false \
@@ -172,4 +172,58 @@ cosign_attest_predicate() {
   local now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   printf '%s\n%s\n%s\n%s\n%s\n' \
     "$tag_ref" "$digest_ref" "$mediaType" "$size" "$now"
+}
+
+
+oci_attest_predicate_ev_json() {
+  local category="${1:?category}"
+  local subject="${2:?subject_digest_ref}"
+  local predicate_path="${3:?predicate_path}"
+  local predicate_type="${4:?predicate_type}"
+
+  local pred_sha
+  pred_sha="$(sha256sum "$predicate_path" | awk '{print $1}')"
+
+  mapfile -t out < <(cosign_attest_predicate "$subject" "$predicate_path" "$predicate_type")
+  local tag_ref="${out[0]}"
+  local digest_ref="${out[1]}"
+  local mediaType="${out[2]}"
+  local size="${out[3]}"
+  local pushed_at="${out[4]}"
+
+  local key="${category}|${predicate_type}|${pred_sha}"
+  local signed_at
+  signed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  jq -n \
+    --arg key "$key" \
+    --arg category "$category" \
+    --arg predicateType "$predicate_type" \
+    --arg predicate_path "$predicate_path" \
+    --arg predicate_sha256 "$pred_sha" \
+    --arg subject "$subject" \
+    --arg tag_ref "$tag_ref" \
+    --arg digest_ref "$digest_ref" \
+    --arg mediaType "$mediaType" \
+    --arg size "$size" \
+    --arg pushed_at "$pushed_at" \
+    --arg signer "$SIGNER_URI" \
+    --arg signed_at "$signed_at" \
+    '{
+      key: $key,
+      kind: "cosign-attestation",
+      category: $category,
+      predicateType: $predicateType,
+      predicate: { path: $predicate_path, sha256: $predicate_sha256 },
+      subject: { digest_ref: $subject },
+      oci: {
+        tag_ref: $tag_ref,
+        digest_ref: $digest_ref,
+        mediaType: $mediaType,
+        size: ($size|tonumber),
+        pushed_at: $pushed_at
+      },
+      signer: $signer,
+      signed_at: $signed_at
+    }'
 }

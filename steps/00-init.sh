@@ -10,9 +10,12 @@ source "$basepath/lib/common.sh"
 source "$basepath/lib/config.sh"
 source "$basepath/lib/buildctx.sh"
 
+buildscript="${1:?expected buildscript path as arg1}"
+shift || true
+
 # Generate initial build context
 log "==> (init) generating initial build context"
-ctx_build_init "$0" "$@" || exit 1
+ctx_build_init "$buildscript" "$@" || exit 1
 
 log "==> (init) loading build context from ${BUILDCTX_PATH}"
 ctx_export_release_vars
