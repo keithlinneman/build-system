@@ -1,3 +1,5 @@
+#!/bin/bash
+
 ## gate releases on govulncheck reporting 0 vulns ( may change to high/crit at some point)
 #log "==> (vuln-scan) scanning source with govulncheck for vulnerabilities"
 #govulncheck ./... || gateVulnRelease $?

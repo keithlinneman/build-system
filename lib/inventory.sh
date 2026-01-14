@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 generate_inventory_json() {
   local OUT="${DIST}/inventory.json"
   # cache avoids re-hashing the same file over and over
@@ -10,7 +12,7 @@ generate_inventory_json() {
   build_info="$( ctx_get_json '.builder' )"
 
   generated_epoch="$( date +%s )"
-  generated_date="$( date -d @${generated_epoch} -u +%Y-%m-%dT%H:%M:%SZ )"
+  generated_date="$( date -d "@${generated_epoch}" -u +%Y-%m-%dT%H:%M:%SZ )"
   generated_host="$( hostname )"
   generated_script="${1:-unknown}"
   shift || true
@@ -69,7 +71,8 @@ generate_inventory_json() {
   # ---------- build files[] inventory ----------
   local files='[]'
   while IFS= read -r abs; do
-    local rel="${abs#${DIST}/}"
+    local rel
+    rel="${abs#"${DIST}/"}"
     # dont embed the manifest we are generating (or its .sig file) inside itself
     [[ "$rel" == "release.json" ]] && continue
     [[ "$rel" == "release.json.sig" ]] && continue
@@ -87,7 +90,8 @@ generate_inventory_json() {
     fi
 
     if [ "${kind}" == "binary" ]; then
-      local component="$( discover_component_from_rel_path "$rel" )"
+      local component
+      component="$( discover_component_from_rel_path "$rel" )"
 
       log "==> (evidence) locating build context oci subject for component:${component} os:${os} arch:${arch} (file:${rel})"
       # find it in the oci subjects buildctx if present
@@ -172,12 +176,14 @@ generate_inventory_json() {
   ')"
 
   # ---------- oras tooling ----------
-  local oras_ver="$( oras version  | grep ^Version | awk '{ print $NF }' )"
+  local oras_ver
+  oras_ver="$( oras version  | grep ^Version | awk '{ print $NF }' )"
 
   # ---------- gather metadata ----------
-  local app="${APP:-}"
-  local release_id="${RELEASE_ID:-}"
-  local created_at="${BUILD_DATE:-}"
+  #local app release_id created_at
+  #app="${APP:-}"
+  #release_id="${RELEASE_ID:-}"
+  #created_at="${BUILD_DATE:-}"
 
   # git best-effort
   local repo commit branch tag

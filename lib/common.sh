@@ -1,4 +1,5 @@
-set -euo pipefail
+# shellcheck shell=bash
+set -Eeuo pipefail
 IFS=$'\n\t'
 shopt -s inherit_errexit 2>/dev/null || true
 

@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 signbinary()
 {
   # Generate cosign files
@@ -16,8 +18,9 @@ signbinary()
 
   # using subshell to separate env vars/creds that cosign relies on cleanly
   (
-    export AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2
-    export AWS_PROFILE="$AWS_KMS_SIGNER_PROFILE"
+    # intentionally doing this in a subshell, suppress shellcheck subshell warnings
+    # shellcheck disable=SC2030
+    AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2 AWS_PROFILE="$AWS_KMS_SIGNER_PROFILE"
 
     log "==> (sign) signing binary ${BIN} with cosign using aws_profile ${AWS_PROFILE}"
     # not using rekor/sigstore at all for now - offline signing using kms key
@@ -25,7 +28,6 @@ signbinary()
     #cosign sign-blob --yes --tlog-upload=false --use-signing-config=false --new-bundle-format=false --key "$SIGNER_URI" --output-signature "${SIG}" "$BIN" 1>/dev/null 2>&1
     if ! err="$( cosign sign-blob --yes --tlog-upload=false --use-signing-config=false --new-bundle-format=false --key "$SIGNER_URI" --output-signature "${SIG}" "$BIN" 2>&1 >/dev/null )"; then
       die "ERROR: cosign sign-blob failed: $err"
-      return 1
     fi
   )
 }
@@ -57,13 +59,13 @@ attest_file_dsse_v1() {
 
   # derive bundle output path under attestations/ that mirrors the predicate path
   if [[ -z "$bundle_out" ]]; then
-    local dist_root rel first base rel_under stem
+    local dist_root rel first base rel_under
     dist_root="${DIST_DIR:-dist}"
 
     if command -v realpath >/dev/null 2>&1; then
       rel="$(realpath --relative-to="$dist_root" "$predicate_path" 2>/dev/null || basename "$predicate_path")"
     else
-      rel="${predicate_path#${dist_root}/}"
+      rel="${predicate_path#"${dist_root}"/}"
     fi
 
     first="${rel%%/*}"
@@ -74,7 +76,7 @@ attest_file_dsse_v1() {
         ;;
       *)
         base="$dist_root/$first"
-        rel_under="${rel#${first}/}"
+        rel_under="${rel#"${first}"/}"
         ;;
     esac
 
@@ -127,8 +129,9 @@ attest_file_dsse_v1() {
     #eval "$(aws --profile "$aws_profile" configure export-credentials --format env)"
     #export AWS_REGION="$aws_region" AWS_DEFAULT_REGION="$aws_region"
 
-    export AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2
-    export AWS_PROFILE="$AWS_KMS_SIGNER_PROFILE"
+    # intentionally doing this in a subshell, suppress shellcheck subshell warnings
+    # shellcheck disable=SC2031 disable=SC2030
+    export AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2 AWS_PROFILE="$AWS_KMS_SIGNER_PROFILE"
 
     log "==> (attest) cosign attest-blob (DSSE bundle)"
     if ! err="$( cosign attest-blob --yes --tlog-upload=false --key "$SIGNER_URI" --statement "$tmp_statement" --bundle "$bundle_out" --output-file /dev/null 2>&1 >/dev/null )"; then
@@ -141,9 +144,44 @@ attest_file_dsse_v1() {
 
 }
 
+# cosign_attest_predicate() {
+#   # args: subject_digest_ref predicate_path predicate_type
+#   local subject="$1"
+#   local predicate_path="$2"
+#   local predicate_type="$3"
+
+#   [[ -n "$subject" ]] || die "cosign_attest_predicate: missing subject"
+#   [[ -f "$predicate_path" ]] || die "cosign_attest_predicate: predicate file not found: $predicate_path"
+#   [[ -n "$predicate_type" ]] || die "cosign_attest_predicate: missing predicate_type"
+
+#   # Common flags (adjust to your model)
+#   cosign_with_signer_aws attest --yes \
+#     --key "${SIGNER_URI}" \
+#     --predicate "${predicate_path}" \
+#     --type "${predicate_type}" \
+#     --tlog-upload=false \
+#     "${subject}"
+
+#   local tag_ref digest_ref desc size mediaType now
+#   # old tag style, we are using new referrer model now
+#   # Where cosign stored the attestation artifact
+#   #tag_ref="$( cosign triangulate --type attestation "${subject}" )"
+#     # Resolve to digest ref for stable identity
+#   # digest_ref="$(oras resolve "${tag_ref}")"
+
+#   # Descriptor info
+#   desc="$(oras manifest fetch --descriptor "${digest_ref}" --output json)"
+#   size="$(jq -r '.size' <<<"$desc")"
+#   mediaType="$(jq -r '.mediaType' <<<"$desc")"
+#   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+#   printf '%s\n%s\n%s\n%s\n%s\n' \
+#     "$tag_ref" "$digest_ref" "$mediaType" "$size" "$now"
+# }
+
 cosign_attest_predicate() {
   # args: subject_digest_ref predicate_path predicate_type
-  local subject="$1"
+  # returns: tag_ref digest_ref mediaType size pushed_at
+  local subject="$1"           # repo@sha256:...
   local predicate_path="$2"
   local predicate_type="$3"
 
@@ -151,79 +189,156 @@ cosign_attest_predicate() {
   [[ -f "$predicate_path" ]] || die "cosign_attest_predicate: predicate file not found: $predicate_path"
   [[ -n "$predicate_type" ]] || die "cosign_attest_predicate: missing predicate_type"
 
-  # Common flags (adjust to your model)
-  cosign attest --yes \
+  local base_repo="${subject%@*}"  # repo
+
+  # we cant get the exact referrer created returned, so we save the list before and diff it to the list after
+  # seems like there must be a better way to do this
+  local before after_json after_digests new_digest digest_ref
+  before="$(oras discover --format json "$subject" \
+    | jq -r '.referrers[]?.digest // empty' \
+    | LC_ALL=C sort -u)"
+
+  # Attest (referrers model)
+  cosign_with_signer_aws attest --yes \
     --key "${SIGNER_URI}" \
     --predicate "${predicate_path}" \
     --type "${predicate_type}" \
     --tlog-upload=false \
     "${subject}" >/dev/null
 
-  # Where cosign stored the attestation artifact
-  local tag_ref="$( cosign triangulate --type attestation "${subject}" )"
-  
-  # Resolve to digest ref for stable identity
-  local digest_ref="$(oras resolve "${tag_ref}")"
+  # Get list of referrers after
+  after_json="$(oras discover --format json "$subject")"
+  after_digests="$(
+    jq -r '((.referrers // .manifests // [])[]? | .digest // empty)' <<<"$after_json" \
+      | sed '/^$/d' | LC_ALL=C sort -u
+  )"
 
-  # Descriptor info
-  local desc="$(oras manifest fetch --descriptor "${digest_ref}" --output json)"
-  local size="$(jq -r '.size' <<<"$desc")"
-  local mediaType="$(jq -r '.mediaType' <<<"$desc")"
-  local now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf '%s\n%s\n%s\n%s\n%s\n' \
-    "$tag_ref" "$digest_ref" "$mediaType" "$size" "$now"
+  # # Find new digest(s)
+  # new_digest="$(comm -13 <(printf '%s\n' "$before") <(printf '%s\n' "$after_digests") | tail -n 1)"
+  # if [[ -z "$new_digest" ]]; then
+  #   echo "ERROR: couldn't determine new referrer digest" >&2
+  #   return 1
+  # fi
+  # digest_ref="${base_repo}@${new_digest}"
+
+  # Referrers after (retry for eventual consistency / ACTIVE lag)
+  local after_json after_digests new_digest=""
+  local sleep_s=0.2
+
+  for _ in {1..10}; do
+    after_json="$(oras discover --format json "$subject" 2>/dev/null || true)"
+
+    after_digests="$(
+      jq -r '((.referrers // .manifests // [])[]? | .digest // empty)' <<<"$after_json" \
+        | sed '/^$/d' | LC_ALL=C sort -u
+    )"
+
+    new_digest="$(comm -13 <(printf '%s\n' "$before") <(printf '%s\n' "$after_digests") | tail -n 1)"
+
+    if [[ -n "$new_digest" ]]; then
+      break
+    fi
+
+    sleep "$sleep_s"
+    # simple backoff: 0.2, 0.4, 0.8, 1.6, ...
+    sleep_s="$(awk -v s="$sleep_s" 'BEGIN{printf "%.3f", (s<2.0 ? s*2 : 2.0)}')"
+  done
+
+  if [[ -z "$new_digest" ]]; then
+    echo "ERROR: couldn't determine new referrer digest (referrers didn't change after attest)" >&2
+    echo "DEBUG(before):" >&2; printf '%s\n' "$before" >&2
+    echo "DEBUG(after):" >&2;  printf '%s\n' "$after_digests" >&2
+    return 1
+  fi
+  digest_ref="${base_repo}@${new_digest}"
+
+
+  local desc size mediaType signed_at
+  desc="$(
+    jq -c --arg d "$new_digest" '
+      ((.referrers // .manifests // []) | map(select(.digest == $d)) | .[0]) // {}
+    ' <<<"$after_json"
+  )"
+  mediaType="$(jq -r '.mediaType // empty' <<<"$desc")"
+  size="$(jq -r '.size // empty' <<<"$desc")"
+  signed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  printf '%s\n%s\n%s\n%s\n' \
+    "$digest_ref" "${mediaType:-}" "${size:-0}" "$signed_at"
 }
 
 
-oci_attest_predicate_ev_json() {
-  local category="${1:?category}"
-  local subject="${2:?subject_digest_ref}"
-  local predicate_path="${3:?predicate_path}"
-  local predicate_type="${4:?predicate_type}"
+# oci_attest_predicate_ev_json() {
+#   local category="${1:?category}"
+#   local subject="${2:?subject_digest_ref}"
+#   local predicate_path="${3:?predicate_path}"
+#   local predicate_type="${4:?predicate_type}"
 
-  local pred_sha
-  pred_sha="$(sha256sum "$predicate_path" | awk '{print $1}')"
+#   local pred_sha
+#   pred_sha="$(sha256sum "$predicate_path" | awk '{print $1}')"
 
-  mapfile -t out < <(cosign_attest_predicate "$subject" "$predicate_path" "$predicate_type")
-  local tag_ref="${out[0]}"
-  local digest_ref="${out[1]}"
-  local mediaType="${out[2]}"
-  local size="${out[3]}"
-  local pushed_at="${out[4]}"
+#   mapfile -t out < <(cosign_attest_predicate "$subject" "$predicate_path" "$predicate_type")
+#   local tag_ref="${out[0]}"
+#   local digest_ref="${out[1]}"
+#   local mediaType="${out[2]}"
+#   local size="${out[3]}"
+#   local pushed_at="${out[4]}"
 
-  local key="${category}|${predicate_type}|${pred_sha}"
-  local signed_at
-  signed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+#   local key="${category}|${predicate_type}|${pred_sha}"
+#   local signed_at
+#   signed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-  jq -n \
-    --arg key "$key" \
-    --arg category "$category" \
-    --arg predicateType "$predicate_type" \
-    --arg predicate_path "$predicate_path" \
-    --arg predicate_sha256 "$pred_sha" \
-    --arg subject "$subject" \
-    --arg tag_ref "$tag_ref" \
-    --arg digest_ref "$digest_ref" \
-    --arg mediaType "$mediaType" \
-    --arg size "$size" \
-    --arg pushed_at "$pushed_at" \
-    --arg signer "$SIGNER_URI" \
-    --arg signed_at "$signed_at" \
-    '{
-      key: $key,
-      kind: "cosign-attestation",
-      category: $category,
-      predicateType: $predicateType,
-      predicate: { path: $predicate_path, sha256: $predicate_sha256 },
-      subject: { digest_ref: $subject },
-      oci: {
-        tag_ref: $tag_ref,
-        digest_ref: $digest_ref,
-        mediaType: $mediaType,
-        size: ($size|tonumber),
-        pushed_at: $pushed_at
-      },
-      signer: $signer,
-      signed_at: $signed_at
-    }'
+#   jq -n \
+#     --arg key "$key" \
+#     --arg category "$category" \
+#     --arg predicateType "$predicate_type" \
+#     --arg predicate_path "$predicate_path" \
+#     --arg predicate_sha256 "$pred_sha" \
+#     --arg subject "$subject" \
+#     --arg tag_ref "$tag_ref" \
+#     --arg digest_ref "$digest_ref" \
+#     --arg mediaType "$mediaType" \
+#     --arg size "$size" \
+#     --arg pushed_at "$pushed_at" \
+#     --arg signer "$SIGNER_URI" \
+#     --arg signed_at "$signed_at" \
+#     '{
+#       key: $key,
+#       kind: "cosign-attestation",
+#       category: $category,
+#       predicateType: $predicateType,
+#       predicate: { path: $predicate_path, sha256: $predicate_sha256 },
+#       subject: { digest_ref: $subject },
+#       oci: {
+#         tag_ref: $tag_ref,
+#         digest_ref: $digest_ref,
+#         mediaType: $mediaType,
+#         size: ($size|tonumber),
+#         pushed_at: $pushed_at
+#       },
+#       signer: $signer,
+#       signed_at: $signed_at
+#     }'
+# }
+
+# cosign_with_signer_aws() {
+#   AWS_PROFILE="${AWS_KMS_SIGNER_PROFILE:?}"
+#   AWS_SDK_LOAD_CONFIG=1
+#   # intentionally calling this from a subshell, suppress shellcheck subshell warnings
+#   # shellcheck disable=SC2030 disable=SC2031
+#   AWS_REGION="${AWS_REGION:-us-east-2}"
+#   log "==> (signing) running cosign with AWS_PROFILE=${AWS_PROFILE} AWS_REGION=${AWS_REGION}"
+#   log "==> (debug) current env: $( env )"
+#   cosign "$@"
+# }
+
+cosign_with_signer_aws() {
+  local profile="${AWS_KMS_SIGNER_PROFILE:?AWS_KMS_SIGNER_PROFILE required}"
+  # shellcheck disable=SC2030 disable=SC2031
+  local region="${AWS_REGION:-us-east-2}"
+
+  log "==> (signing) running cosign with AWS_PROFILE=${profile} AWS_REGION=${region}"
+  # intentionally calling this from a subshell, suppress shellcheck subshell warnings
+  # shellcheck disable=SC2030 disable=SC2031
+  AWS_PROFILE="$profile" AWS_SDK_LOAD_CONFIG=1 AWS_REGION="$region" AWS_DEFAULT_REGION="$region" AWS_EC2_METADATA_DISABLED=true cosign "$@"
 }

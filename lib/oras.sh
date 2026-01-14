@@ -1,7 +1,9 @@
+# shellcheck shell=bash
+
 initialize_oci() {
-  REPO_URL="$( ctx_get '.source.repo' )"
-  BUILD_ID_REGISTRY_SAFE="$(echo -n "${BUILD_ID}" | tr '_+' '-')"
-  BASE_TAG=$BUILD_ID_REGISTRY_SAFE
+  #REPO_URL="$( ctx_get '.source.repo' )"
+  #BUILD_ID_REGISTRY_SAFE="$(echo -n "${BUILD_ID}" | tr '_+' '-')"
+  #BASE_TAG=$BUILD_ID_REGISTRY_SAFE
   INDEX_ARTIFACT_TYPE="application/vnd.phxi.binary.index.v1"
   SOURCE_REPO="$( ctx_get '.source.repo' )"
 
@@ -12,25 +14,28 @@ initialize_oci() {
   ctx_materialize_resolved_refs
 }
 
-oci_write_default_annotations_json() {
-  # args: component platform artifactType, created_at, source_repo, source_commit, release_version, release_id, build_id, build_date 
-  donothing="true"
-}
+# oci_write_default_annotations_json() {
+#   # args: component platform artifactType, created_at, source_repo, source_commit, release_version, release_id, build_id, build_date 
+#   donothing="true"
+# }
+
 oci_push_component_artifact() {
   # args: component platform_key
   # reads: components.<c>.oci.*, artifacts.<p>.* from buildctx
   # calls: oci_push_binary
   # then: ctx_artifact_set_oci_pushed
-  local component="$1"
-  local pkey="$2"
+  local component pkey registry repo rel_path path sha256 tag platform
+  component="$1"
+  pkey="$2"
   
-  local registry="$(ctx_get_component_registry "$component")"
-  local repo="$(ctx_get_component_repository "$component")"
+  registry="$(ctx_get_component_registry "$component")"
+  repo="$(ctx_get_component_repository "$component")"
   
-  local path="$( ctx_get_artifact_local_path "${component}" "${pkey}" )"
-  local sha256="$( ctx_get_artifact_local_sha256 "${component}" "${pkey}" )"
-  local tag="$( ctx_get_artifact_oci_tag "${component}" "${pkey}" )"
-  local platform="$( ctx_get_artifact_platform_label "${component}" "${pkey}" )"
+  rel_path="$( ctx_get_artifact_local_path "${component}" "${pkey}" )"
+  path="${DIST}/${rel_path}"
+  sha256="$( ctx_get_artifact_local_sha256 "${component}" "${pkey}" )"
+  tag="$( ctx_get_artifact_oci_tag "${component}" "${pkey}" )"
+  platform="$( ctx_get_artifact_platform_label "${component}" "${pkey}" )"
 
   if [[ -z "${path}" || -z "${sha256}" || -z "${tag}" || -z "${platform}" ]];then
     die "Missing push inputs: comp=$component pkey=$pkey path=$path sha=$sha256 tag=$tag platform=$platform"
@@ -43,7 +48,8 @@ oci_push_component_artifact() {
   fi
   log "==> (oci) found built artifact for component=${component} pkey=${pkey} path=${path} sha256=${sha256} tag=${tag}"
 
-  local file_sha256="$( sha256sum "${path}" | awk '{print $1}' )"
+  local file_sha256
+  file_sha256="$( sha256sum "${path}" | awk '{print $1}' )"
   if [[ "${file_sha256}" != "${sha256}" ]];then
     die "Checksum mismatch for component=${component} pkey=${pkey} path=${path} digest=${sha256} tag=${tag} - expected sha256=${sha256} got sha256=${file_sha256}"
     exit 1
@@ -56,7 +62,8 @@ oci_push_component_artifact() {
     return 0
   fi
 
-  local result="$( oci_push_binary "$component" "$path" "$registry" "$repo" "$tag" "$BINARY_ARTIFACT_TYPE" "$platform" )"
+  local result
+  result="$( oci_push_binary "$component" "$path" "$registry" "$repo" "$tag" "$BINARY_ARTIFACT_TYPE" "$platform" )"
   local digest mediaType size pushed_at
   IFS=" " read -r digest mediaType size pushed_at <<<"$result"
   log "==> (oci) pushed component=${component} pkey=${pkey} digest=${digest} mediaType=${mediaType} size=${size} pushed_at=${pushed_at}"
@@ -75,8 +82,8 @@ oci_push_binary() {
   local artifact_type="$6"
   local platform="$7"
 
-  local os=${platform%%/*}
-  local arch=${platform##*/}
+  #local os=${platform%%/*}
+  #local arch=${platform##*/}
   local ref="${registry}/${repo}:${tag}"
   local title="${APP}-${component}"
 
@@ -91,8 +98,9 @@ oci_push_binary() {
   cp -f "${file_path}" "${staging_dir}/${title}"
 
   #log "==> (oci) pushing OCI artifact file:${file_path} component:${component} platform:${platform} to ref:${ref}"
-  pushd "${staging_dir}" >/dev/null
-  local digest="$(
+  pushd "${staging_dir}" >/dev/null || die "Failed to pushd to staging dir"
+  local digest
+  digest="$(
     oras push "${ref}" \
       --artifact-type "${artifact_type}" \
       --artifact-platform "${platform}" \
@@ -101,13 +109,14 @@ oci_push_binary() {
       "${title}:application/octet-stream" \
       --format go-template --template '{{.digest}}'
   )"
-  popd >/dev/null
+  popd >/dev/null || die "Failed to popd from staging dir"
 
-  local subject_digest_ref="${registry}/${repo}@${digest}"
-  local subject_desc="$( oras manifest fetch --descriptor "${subject_digest_ref}" --output json )"
-  local subject_size="$( echo "${subject_desc}" | jq -r '.size' )"
-  local subject_media_type="$( echo "${subject_desc}" | jq -r '.mediaType' )"
-  local now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local subject_digest_ref subject_desc subject_size subject_media_type now
+  subject_digest_ref="${registry}/${repo}@${digest}"
+  subject_desc="$( oras manifest fetch --descriptor "${subject_digest_ref}" --output json )"
+  subject_size="$( echo "${subject_desc}" | jq -r '.size' )"
+  subject_media_type="$( echo "${subject_desc}" | jq -r '.mediaType' )"
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
   echo "${digest} ${subject_media_type} ${subject_size} ${now}"
 }
@@ -193,7 +202,8 @@ oci_create_index() {
 
   local title="${APP}-${component}"
 
-  local out="$(
+  local out
+  out="$(
     oras manifest index create \
       --artifact-type "${index_artifact_type}" \
       --annotation "org.opencontainers.image.title=${title}" \

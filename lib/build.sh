@@ -1,10 +1,12 @@
+# shellcheck shell=bash
+
 build_binary() {
   local component="$1" goos="$2" goarch="$3" outfile="$4"
   mkdir -p "$( dirname "${outfile}" )"
   CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
     go build -trimpath -mod=readonly -buildvcs=true \
       -ldflags "${LDFLAGS[*]}" \
-      -o "$outfile" ./cmd/${component}
+      -o "$outfile" "./cmd/${component}"
 }
 
 initialize_build_env() {

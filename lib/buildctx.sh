@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+
 # Get a string value from the build context file, with optional default
 ctx_get() {
   local jq_expr="$1"
@@ -216,7 +218,7 @@ ctx_build_init() {
 
   log "==> (init) clearing out DIST directory: $DIST"
   rm -rf "${DIST:?}/"*
-  mkdir -p "${DIST}/scan/source" "${DIST}/attestations"
+  mkdir -p "${DIST}"
 
   log "==> (init) generating values for build context file"
 
@@ -391,6 +393,8 @@ ctx_build_init() {
 ctx_component_init() {
   local component="$1" registry="$2" repository="$3"
 
+  # These are jq variables not shell variables so disabling shellcheck single quote warning
+  # shellcheck disable=SC2016
   ctx_jq '
     .components = (.components // {}) |
     .components[$c] = (
@@ -434,14 +438,23 @@ platform_key() {
   echo "$label" | tr '/' '_'
 }
 
+ctx_label_from_pkey() {
+  local pkey="$1"
+  echo "$pkey" | tr '_' '/'
+}
+
 ctx_pkey_from_label() { platform_key "$1"; }
 
 ctx_artifact_set_local() {
   local component="$1" label="$2" os="$3" arch="$4" kind="$5" atype="$6"
   local path="$7" sha="$8" size="$9" tag="${10}"
-  local pkey
+  local pkey path_rel
   pkey="$(platform_key "$label")"
+  path_rel="$( dist_relpath "$path" )"
 
+
+  # These are jq variables not shell variables so disabling shellcheck single quote warning
+  # shellcheck disable=SC2016
   ctx_jq '
     .components[$c].artifacts[$p] = (
       (.components[$c].artifacts[$p] // {
@@ -469,13 +482,15 @@ ctx_artifact_set_local() {
     --arg c "$component" --arg p "$pkey" \
     --arg os "$os" --arg arch "$arch" --arg label "$label" \
     --arg kind "$kind" --arg atype "$atype" \
-    --arg path "$path" --arg sha "$sha" --arg tag "$tag" \
+    --arg path "$path_rel" --arg sha "$sha" --arg tag "$tag" \
     --argjson size "$size"
 }
 
 ctx_artifact_set_oci_pushed() {
   local component="$1" pkey="$2" digest="$3" mediaType="$4" dsize="$5" pushed_at="$6"
 
+  # These are jq variables not shell variables so disabling shellcheck single quote warning
+  # shellcheck disable=SC2016
   ctx_jq '
     .components[$c].artifacts[$p].oci = (
       (.components[$c].artifacts[$p].oci // {})
@@ -493,12 +508,16 @@ ctx_artifact_set_oci_pushed() {
 
 ctx_index_set_tag() {
   local component="$1" tag="$2"
+  # These are jq variables not shell variables so disabling shellcheck single quote warning
+  # shellcheck disable=SC2016
   ctx_jq '.components[$c].index.oci.tag = $tag' --arg c "$component" --arg tag "$tag"
 }
 
 ctx_index_set_oci_pushed() {
   local component="$1" digest="$2" mediaType="$3" dsize="$4" pushed_at="$5"
 
+  # These are jq variables not shell variables so disabling shellcheck single quote warning
+  # shellcheck disable=SC2016
   ctx_jq '
     .components[$c].index.oci.digest = $digest |
     (if ($mt | length) > 0 then .components[$c].index.oci.mediaType = $mt else . end) |
@@ -517,6 +536,8 @@ ctx_index_refresh_manifests() {
   registry="$(ctx_get_component_registry "$component")"
   repo="$(ctx_get_component_repository "$component")"
 
+  # These are jq variables not shell variables so disabling shellcheck single quote warning
+  # shellcheck disable=SC2016
   ctx_jq '
     ($registry + "/" + $repo) as $base |
     .components[$c].index.oci.manifests =
@@ -544,6 +565,8 @@ ctx_artifact_append_evidence() {
   local pkey
   pkey="$(platform_key "$label")"
 
+  # These are jq variables not shell variables so disabling shellcheck single quote warning
+  # shellcheck disable=SC2016
   ctx_jq '
     .components[$c].artifacts[$p].evidence[$slot] =
       (
@@ -568,6 +591,8 @@ ctx_index_append_evidence() {
   local component="$1" slot="$2" kind="$3" pt="$4" ref="$5"
   local signer="${6:-}" signed_at="${7:-}"
 
+  # These are jq variables not shell variables so disabling shellcheck single quote warning
+  # shellcheck disable=SC2016
   ctx_jq '
     .components[$c].index.evidence[$slot] =
       (
@@ -588,6 +613,8 @@ ctx_index_append_evidence() {
 }
 
 ctx_materialize_resolved_refs() {
+  # These are jq variables not shell variables so disabling shellcheck single quote warning
+  # shellcheck disable=SC2016
   ctx_jq '
     def tag_ref(reg; repo; tag): (reg + "/" + repo + ":" + tag);
     def digest_ref(reg; repo; digest): (reg + "/" + repo + "@" + digest);
@@ -719,4 +746,46 @@ ctx_get_index_tag() {
 
 ctx_get_index_digest() {
   ctx_get_component_field "$1" '.index.oci.digest'
+}
+
+ctx_list_plan_components() { jq -r '.build.components[] | select(length>0)' "$BUILDCTX_PATH"; }
+ctx_list_plan_platforms()  { jq -r '.build.platforms[]' "$BUILDCTX_PATH"; }
+
+# args: component platform_key category evidence_json
+ctx_artifact_evidence_upsert() {
+  local component="$1" pkey="$2" category="$3" evidence_json="$4"
+  local tmp; tmp="$(mktemp)"
+
+  jq \
+    --arg c "$component" \
+    --arg p "$pkey" \
+    --arg cat "$category" \
+    --argjson ev "$evidence_json" \
+    '
+      .components[$c].artifacts[$p].evidence = (.components[$c].artifacts[$p].evidence // {}) |
+      .components[$c].artifacts[$p].evidence[$cat] = (
+        (.components[$c].artifacts[$p].evidence[$cat] // [])
+        | map(select((.key // "") != ($ev.key // "")))
+        + [ $ev ]
+      )
+    ' "${BUILDCTX_PATH}" >"$tmp" && mv -f "$tmp" "${BUILDCTX_PATH}"
+}
+
+# args: component category evidence_json
+ctx_index_evidence_upsert() {
+  local component="$1" category="$2" evidence_json="$3"
+  local tmp; tmp="$(mktemp)"
+
+  jq \
+    --arg c "$component" \
+    --arg cat "$category" \
+    --argjson ev "$evidence_json" \
+    '
+      .components[$c].index.evidence = (.components[$c].index.evidence // {}) |
+      .components[$c].index.evidence[$cat] = (
+        (.components[$c].index.evidence[$cat] // [])
+        | map(select((.key // "") != ($ev.key // "")))
+        + [ $ev ]
+      )
+    ' "${BUILDCTX_PATH}" >"$tmp" && mv -f "$tmp" "${BUILDCTX_PATH}"
 }
