@@ -15,21 +15,21 @@ source "$basepath/lib/inventory.sh"
 source "$basepath/lib/signing.sh"
 source "$basepath/lib/evidence.sh"
 
-log "==> (build) starting inventory generation"
+log "==> (inventory) starting step 40-generate-inventory"
 
-log "==> (build) loading build context from ${BUILDCTX_PATH}"
+log "==> (inventory) loading build context from ${BUILDCTX_PATH}"
 ctx_export_release_vars
 
-log "==> (evidence) initializing OCI artifacts maps for inventory"
+log "==> (inventory) initializing OCI artifacts maps for inventory"
 evidence_init_oci_maps
 
 # Generate release.json, containing sizes, sha256sums, paths, etc
-log "==> (build) generating inventory.json"
+log "==> (inventory) generating inventory.json"
 generate_inventory_json "${SCRIPT_PATH}" "$@" || die "failed to generate inventory json!"
 
 # cosign inventory.json
-log "==> (sign) signing inventory.json"
-if [[ ! -s dist/inventory.json ]];then
-  die "Missing/invalid dist/inventory.json - refusing to sign or proceed"
-fi
-signbinary "dist/inventory.json" || die "failed to sign inventory.json"
+#log "==> (sign) signing inventory.json"
+#if [[ ! -s dist/inventory.json ]];then
+#  die "Missing/invalid dist/inventory.json - refusing to sign or proceed"
+#fi
+#signbinary "dist/inventory.json" || die "failed to sign inventory.json"

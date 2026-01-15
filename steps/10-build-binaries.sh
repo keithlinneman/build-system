@@ -23,7 +23,7 @@ initialize_build_env || exit 1
 for component in $( ctx_list_plan_components );do
   log "==> (build) starting component=${component}"
 
-  for platform in $( ctx_list_plan_platforms "${component}" );do
+  for platform in $( ctx_list_plan_platforms );do
     # build platform binary
     log "==> (build) building component=${component} platform=${platform}"
     build_component_artifact "${component}" "${platform}"

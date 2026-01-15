@@ -18,8 +18,56 @@ ctx_get() {
 
 # Get a raw JSON value (object/array) without stringifying it
 ctx_get_json() {
-  local jq_expr="$1"
-  jq -c "$jq_expr" "$BUILDCTX_PATH"
+  local jq_expr="$1"; shift || true
+  jq -c "$jq_expr" "$@" "$BUILDCTX_PATH"
+}
+
+ctx_get_subject_for_component_platform() {
+  local component="$1" label="$2"
+  local pkey; pkey="$(platform_key "$label")"
+
+# These are jq variables not shell variables so disabling shellcheck single quote warning
+# shellcheck disable=SC2016
+  ctx_get_json --arg c "$component" --arg p "$pkey" '
+    .components[$c].artifacts[$p] as $a
+    | if $a == null then empty else
+      {
+        component: $c,
+        platform_key: $p,
+        platform_label: ($a.platform.label // null),
+        kind: ($a.kind // null),
+        artifactType: ($a.artifactType // null),
+        oci: ($a.oci // {} | {
+          tag: .tag, digest: .digest, mediaType: .mediaType, size: .size, pushed_at: .pushed_at
+        } | with_entries(select(.value != null))),
+        resolved: ($a.resolved // {} | {
+          tag_ref: .tag_ref, digest_ref: .digest_ref
+        } | with_entries(select(.value != null)))
+      }
+      | with_entries(select(.value != null))
+    end
+  '
+}
+
+# Return the index (multi-arch) "subject" for a component.
+ctx_get_index_subject_for_component() {
+  local component="$1"
+  # These are jq variables not shell variables so disabling shellcheck single quote warning
+  # shellcheck disable=SC2016
+  ctx_get_json --arg c "$component" '
+    .components[$c].index as $i
+    | if $i == null then empty else
+      {
+        component: $c,
+        kind: ($i.kind // "oci-index"),
+        artifactType: ($i.artifactType // null),
+        oci: ($i.oci // {} | with_entries(select(.value != null))),
+        resolved: ($i.resolved // {} | with_entries(select(.value != null))),
+        evidence: ($i.evidence // {} | with_entries(select(.value != null)))
+      }
+      | with_entries(select(.value != null))
+    end
+  '
 }
 
 # Export the vars step scripts commonly need
@@ -38,173 +86,6 @@ ctx_export_release_vars() {
   COMMIT_DATE="$(ctx_get '.source.commit_date')"
   REPO_DIRTY="$(ctx_get '.source.dirty')"
 }
-
-# ctx_build_init() {
-#   log "==> (init) clearing out dist/ directory"
-#   rm -rf dist/*
-#   mkdir -p {dist/scan/source,dist/attestations}
-
-#   log "==> (init) generating values for build context file"
-
-#   build_epoch="$( date +%s )"
-#   build_date="$( date -d @${build_epoch} -u +%Y-%m-%dT%H:%M:%SZ )"
-#   buildhost="$( hostname )"
-#   buildscript="${1:-${BASH_SOURCE[0]:-unknown}}"
-#   shift || true
-#   ORIGINAL_ARGS=("$@")
-#   redacted_args=()
-#   for a in "${ORIGINAL_ARGS[@]:-}";do
-#   redacted_args+=("$(redact_arg "$a")")
-#   done
-#   buildscript_sha256="$( sha256sum "$buildscript" | awk '{ print $1 }' )"
-#   buildscriptargs_sha256="$( printf '%s\0' "${ORIGINAL_ARGS[@]}" | sha256sum | awk '{print $1}' )"
-#   buildscriptargs_json="$( printf '%s\0' "${redacted_args[@]}" | jq -Rs 'split("\u0000")[:-1] | map(select(length > 0))' )"
-#   buildcomponents_json="$(printf '%s\n' "${BUILD_COMPONENTS[@]}" | jq -R . | jq -s .)"
-#   buildplatforms_json="$(printf '%s\n' "${BUILD_PLATFORMS[@]}" | jq -R . | jq -s .)"
-
-#   repo_url="$( git config --get remote.origin.url 2>/dev/null || true )"
-#   repo_branch="$( git rev-parse --abbrev-ref HEAD 2>/dev/null || true )"
-#   commit="$( git rev-parse HEAD 2>/dev/null || true )"
-#   commit_short="$( git rev-parse --short=7 HEAD )"
-#   commit_date_raw="$( git log -1 --format=%cI || true )"
-#   commit_date="$( date -d "$commit_date_raw" -u "+%Y-%m-%dT%H:%M:%SZ" )"
-#   commit_tag="$( git describe --tags --exact-match 2>/dev/null || true )"
-#   repo_dirty=false
-#   git diff --quiet || repo_dirty=true
-#   git diff --cached --quiet || repo_dirty=true
-#   [ -n "$( git ls-files --others --exclude-standard )" ] && repo_dirty=true
-
-#   #buildrepo_url="$( git config --get remote.origin.url 2>/dev/null || true )"
-#   #buildrepo_branch="$( git rev-parse --abbrev-ref HEAD 2>/dev/null || true )"
-#   #buildcommit="$( git rev-parse HEAD 2>/dev/null || true )"
-#   #buildcommit_short="$( git rev-parse --short=7 HEAD )"
-#   #buildcommit_date_raw="$( git log -1 --format=%cI || true )"
-#   #buildcommit_date="$( date -d "$buildcommit_date_raw" -u "+%Y-%m-%dT%H:%M:%SZ" )"
-#   #buildcommit_tag="$( git describe --tags --exact-match 2>/dev/null || true )"
-#   #buildrepo_dirty=false
-#   #git diff --quiet || buildrepo_dirty=true
-#   #git diff --cached --quiet || buildrepo_dirty=true
-#   #[ -n "$(git ls-files --others --exclude-standard)" ] && buildrepo_dirty=true
-#   buildrepo_url=${repo_url}
-#   buildrepo_branch=${repo_branch}
-#   buildcommit="${commit}"
-#   buildcommit_short=${commit_short}
-#   buildcommit_date=${commit_date}
-#   buildcommit_tag=${commit_tag}
-#   buildrepo_dirty=${repo_dirty}
-
-#   commits_since_tag=""
-#   if [[ -n "$commit_tag" ]]; then
-#   release_track="stable"
-#   base_tag=$commit_tag
-#   version="$commit_tag"
-#   if [[ "${repo_dirty}" == "true" && "${ALLOW_DIRTY:-false}" != "true" ]]; then
-#       die "Refusing to publish version ${version} - working tree is dirty. Set ALLOW_DIRTY=true to override"
-#       exit 1
-#   fi
-#   if [[ "${buildrepo_dirty}" == "true" && "${ALLOW_DIRTY_BUILD_PLATFORM:-false}" != "true" ]]; then
-#       die "Refusing to publish - build platform working tree is dirty. Set ALLOW_DIRTY_BUILD_PLATFORM=true to override"
-#       exit 1
-#   fi
-#   else
-#   release_track="dev"
-#   base_tag="$( git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true )"
-#   if [[ -n "$base_tag" ]]; then
-#       commits_since_tag="$( git rev-list --count "${base_tag}..HEAD" )"
-#       version="${base_tag}-dev.${commits_since_tag}"
-#   else
-#       version="v0.0.0-dev.0"
-#       base_tag=""
-#   fi    
-#   fi
-
-#   build_id="${release_track}.${build_epoch}+git.${commit_short}"
-#   release_id="${version}+${build_id}"
-
-#   # create build context file
-#   buildctx_schema="phxi.buildctx.v1"
-#   artifact="$(jq -n \
-#   --arg schema "$buildctx_schema" \
-#   --arg release_track "$release_track" \
-#   --arg app "$APP" \
-#   --arg version "$version" \
-#   --arg build_id "$build_id" \
-#   --arg build_date "$build_date" \
-#   --argjson build_epoch "$build_epoch" \
-#   --arg release_id "$release_id" \
-#   --arg repo_url "$repo_url" \
-#   --arg repo_branch "$repo_branch" \
-#   --argjson repo_dirty "$repo_dirty" \
-#   --arg commit "$commit" \
-#   --arg commit_date "$commit_date" \
-#   --arg commit_short "$commit_short" \
-#   --arg commit_tag "${commit_tag:-}" \
-#   --arg base_tag "${base_tag:-}" \
-#   --arg buildrepo_url "$buildrepo_url" \
-#   --arg buildrepo_branch "$buildrepo_branch" \
-#   --argjson buildrepo_dirty "$buildrepo_dirty" \
-#   --arg commits_since_tag "${commits_since_tag:-}" \
-#   --arg buildcommit "$buildcommit" \
-#   --arg buildcommit_date "$buildcommit_date" \
-#   --arg buildcommit_short "$buildcommit_short" \
-#   --arg buildcommit_tag "${buildcommit_tag:-}" \
-#   --argjson buildcomponents "$buildcomponents_json" \
-#   --argjson buildplatforms "$buildplatforms_json" \
-#   --arg buildhost "$buildhost" \
-#   --arg buildscript "$buildscript" \
-#   --arg buildscript_sha256 "$buildscript_sha256" \
-#   --arg buildscriptargs_sha256 "$buildscriptargs_sha256" \
-#   --argjson buildscriptargs_json "$buildscriptargs_json" \
-#   --arg dist "$DIST" \
-#   '{
-#       schema: $schema,
-#       app: $app,
-#       release: {
-#       version: $version,
-#       build_id: $build_id,
-#       release_id: $release_id,
-#       track: $release_track,
-#       created_at: $build_date,
-#       epoch: $build_epoch,
-#       },
-#       source: ({
-#       repo: $repo_url,
-#       branch: $repo_branch,
-#       commit: $commit,
-#       commit_short: $commit_short,
-#       commit_date: $commit_date,
-#       tag: ($commit_tag | select(length>0) // null),
-#       base_tag: ($base_tag | select(length>0) // null),
-#       commits_since_tag: (($commits_since_tag | tonumber?) // null),
-#       dirty: $repo_dirty
-#       } | with_entries(select(.value != null))),
-#       builder: {
-#       repo: $buildrepo_url,
-#       branch: $buildrepo_branch,
-#       commit: $buildcommit,
-#       commit_short: $buildcommit_short,
-#       commit_date: $buildcommit_date,
-#       tag: ($buildcommit_tag | select(length>0) // null),
-#       dirty: $buildrepo_dirty,
-#       host: $buildhost,
-#       script: $buildscript,
-#       script_sha256: $buildscript_sha256,
-#       script_args: (if ($buildscriptargs_json|length)>0 then $buildscriptargs_json else null end),
-#       script_args_sha256: $buildscriptargs_sha256,
-#       generated_at: $build_date
-#       } | with_entries(select(.value != null)),
-#       build: {
-#       components: $buildcomponents,
-#       platforms: $buildplatforms,
-#       dist_dir: $dist
-#       }
-#   }'
-#   )"
-
-#   mkdir -p "$(dirname "$BUILDCTX_PATH")"
-#   log "==> (init) writing build context file ${BUILDCTX_PATH}"
-#   printf '%s\n' "$artifact" > "$BUILDCTX_PATH"
-# }
 
 ctx_build_init() {
   local buildscript="${1:-${BASH_SOURCE[0]:-unknown}}"

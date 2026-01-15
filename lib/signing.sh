@@ -144,40 +144,6 @@ attest_file_dsse_v1() {
 
 }
 
-# cosign_attest_predicate() {
-#   # args: subject_digest_ref predicate_path predicate_type
-#   local subject="$1"
-#   local predicate_path="$2"
-#   local predicate_type="$3"
-
-#   [[ -n "$subject" ]] || die "cosign_attest_predicate: missing subject"
-#   [[ -f "$predicate_path" ]] || die "cosign_attest_predicate: predicate file not found: $predicate_path"
-#   [[ -n "$predicate_type" ]] || die "cosign_attest_predicate: missing predicate_type"
-
-#   # Common flags (adjust to your model)
-#   cosign_with_signer_aws attest --yes \
-#     --key "${SIGNER_URI}" \
-#     --predicate "${predicate_path}" \
-#     --type "${predicate_type}" \
-#     --tlog-upload=false \
-#     "${subject}"
-
-#   local tag_ref digest_ref desc size mediaType now
-#   # old tag style, we are using new referrer model now
-#   # Where cosign stored the attestation artifact
-#   #tag_ref="$( cosign triangulate --type attestation "${subject}" )"
-#     # Resolve to digest ref for stable identity
-#   # digest_ref="$(oras resolve "${tag_ref}")"
-
-#   # Descriptor info
-#   desc="$(oras manifest fetch --descriptor "${digest_ref}" --output json)"
-#   size="$(jq -r '.size' <<<"$desc")"
-#   mediaType="$(jq -r '.mediaType' <<<"$desc")"
-#   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-#   printf '%s\n%s\n%s\n%s\n%s\n' \
-#     "$tag_ref" "$digest_ref" "$mediaType" "$size" "$now"
-# }
-
 cosign_attest_predicate() {
   # args: subject_digest_ref predicate_path predicate_type
   # returns: tag_ref digest_ref mediaType size pushed_at
@@ -213,14 +179,6 @@ cosign_attest_predicate() {
       | sed '/^$/d' | LC_ALL=C sort -u
   )"
 
-  # # Find new digest(s)
-  # new_digest="$(comm -13 <(printf '%s\n' "$before") <(printf '%s\n' "$after_digests") | tail -n 1)"
-  # if [[ -z "$new_digest" ]]; then
-  #   echo "ERROR: couldn't determine new referrer digest" >&2
-  #   return 1
-  # fi
-  # digest_ref="${base_repo}@${new_digest}"
-
   # Referrers after (retry for eventual consistency / ACTIVE lag)
   local after_json after_digests new_digest=""
   local sleep_s=0.2
@@ -252,6 +210,8 @@ cosign_attest_predicate() {
   fi
   digest_ref="${base_repo}@${new_digest}"
 
+  # call oci_fetch_attestation_dsse() to store local file
+  # oci_fetch_attestation_dsse "$digest_ref" ""
 
   local desc size mediaType signed_at
   desc="$(
@@ -267,71 +227,6 @@ cosign_attest_predicate() {
     "$digest_ref" "${mediaType:-}" "${size:-0}" "$signed_at"
 }
 
-
-# oci_attest_predicate_ev_json() {
-#   local category="${1:?category}"
-#   local subject="${2:?subject_digest_ref}"
-#   local predicate_path="${3:?predicate_path}"
-#   local predicate_type="${4:?predicate_type}"
-
-#   local pred_sha
-#   pred_sha="$(sha256sum "$predicate_path" | awk '{print $1}')"
-
-#   mapfile -t out < <(cosign_attest_predicate "$subject" "$predicate_path" "$predicate_type")
-#   local tag_ref="${out[0]}"
-#   local digest_ref="${out[1]}"
-#   local mediaType="${out[2]}"
-#   local size="${out[3]}"
-#   local pushed_at="${out[4]}"
-
-#   local key="${category}|${predicate_type}|${pred_sha}"
-#   local signed_at
-#   signed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-#   jq -n \
-#     --arg key "$key" \
-#     --arg category "$category" \
-#     --arg predicateType "$predicate_type" \
-#     --arg predicate_path "$predicate_path" \
-#     --arg predicate_sha256 "$pred_sha" \
-#     --arg subject "$subject" \
-#     --arg tag_ref "$tag_ref" \
-#     --arg digest_ref "$digest_ref" \
-#     --arg mediaType "$mediaType" \
-#     --arg size "$size" \
-#     --arg pushed_at "$pushed_at" \
-#     --arg signer "$SIGNER_URI" \
-#     --arg signed_at "$signed_at" \
-#     '{
-#       key: $key,
-#       kind: "cosign-attestation",
-#       category: $category,
-#       predicateType: $predicateType,
-#       predicate: { path: $predicate_path, sha256: $predicate_sha256 },
-#       subject: { digest_ref: $subject },
-#       oci: {
-#         tag_ref: $tag_ref,
-#         digest_ref: $digest_ref,
-#         mediaType: $mediaType,
-#         size: ($size|tonumber),
-#         pushed_at: $pushed_at
-#       },
-#       signer: $signer,
-#       signed_at: $signed_at
-#     }'
-# }
-
-# cosign_with_signer_aws() {
-#   AWS_PROFILE="${AWS_KMS_SIGNER_PROFILE:?}"
-#   AWS_SDK_LOAD_CONFIG=1
-#   # intentionally calling this from a subshell, suppress shellcheck subshell warnings
-#   # shellcheck disable=SC2030 disable=SC2031
-#   AWS_REGION="${AWS_REGION:-us-east-2}"
-#   log "==> (signing) running cosign with AWS_PROFILE=${AWS_PROFILE} AWS_REGION=${AWS_REGION}"
-#   log "==> (debug) current env: $( env )"
-#   cosign "$@"
-# }
-
 cosign_with_signer_aws() {
   local profile="${AWS_KMS_SIGNER_PROFILE:?AWS_KMS_SIGNER_PROFILE required}"
   # shellcheck disable=SC2030 disable=SC2031
@@ -341,4 +236,64 @@ cosign_with_signer_aws() {
   # intentionally calling this from a subshell, suppress shellcheck subshell warnings
   # shellcheck disable=SC2030 disable=SC2031
   AWS_PROFILE="$profile" AWS_SDK_LOAD_CONFIG=1 AWS_REGION="$region" AWS_DEFAULT_REGION="$region" AWS_EC2_METADATA_DISABLED=true cosign "$@"
+}
+
+oci_fetch_attestation_dsse() {
+  # args: att_digest_ref out_path [out_manifest_path]
+  local att_ref="${1:?att_digest_ref required}"
+  local out="${2:?out_path required}"
+  local out_manifest="${3:-}"
+
+  local repo="${att_ref%@*}"
+
+  mkdir -p "$(dirname "$out")"
+
+  local manifest layer_digest layer_mt
+
+  # simple retry (ecr referrers/manifest sometimes lag)
+  local sleep_s=0.2
+  for _ in {1..10}; do
+    if manifest="$(oras manifest fetch --format json "$att_ref" 2>/dev/null)"; then
+      # Prefer DSSE/in-toto-ish layers, fall back to first layer if needed
+      layer_digest="$(
+        jq -r '
+          (.content.layers // .layers // [])
+          | (map(select(.mediaType? | test("dsse|in-toto|json"; "i"))) + .)
+          | .[0].digest // empty
+        ' <<<"$manifest"
+      )"
+      layer_mt="$(
+        jq -r --arg d "$layer_digest" '
+          (.content.layers // .layers // [])
+          | map(select(.digest == $d))
+          | .[0].mediaType // empty
+        ' <<<"$manifest"
+      )"
+
+      if [[ -n "$layer_digest" ]]; then
+        break
+      fi
+    fi
+
+    sleep "$sleep_s"
+    sleep_s="$(awk -v s="$sleep_s" 'BEGIN{printf "%.3f", (s<2.0 ? s*2 : 2.0)}')"
+  done
+
+  [[ -n "${layer_digest:-}" ]] || die "oci_fetch_attestation_dsse: could not find layer digest in manifest for $att_ref"
+
+  # keep the full manifest (for audits/debug) if set
+  if [[ -n "$out_manifest" ]]; then
+    mkdir -p "$(dirname "$out_manifest")"
+    # saving the oci manifest content only
+    #printf '%s\n' "$manifest" > "$out_manifest"
+    jq -c '.content // .' <<<"$manifest" > "$out_manifest"
+  fi
+
+  # fetch the layer blob by digest from the same repo
+  if ! err="$(oras blob fetch --output "$out" "${repo}@${layer_digest}" 2>&1 >/dev/null)"; then
+    die "oci_fetch_attestation_dsse: oras blob fetch failed: $err"
+  fi
+
+  # return mediaType for inventory enrichment
+  printf '%s\n' "${layer_mt:-}"
 }

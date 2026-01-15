@@ -7,10 +7,6 @@ trap 'RC=$?; echo "ERROR(rc=$RC) at ${BASH_SOURCE[0]:-?}:${LINENO:-?} in ${FUNCN
 SCRIPT_PATH="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd -P)/$( basename -- "${BASH_SOURCE[0]}" )"
 BUILD_SYSTEM_ROOT="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}")" && pwd -P )"
 
-#APP="${APP:-}"
-#BUILD_COMPONENTS="${BUILD_COMPONENTS[@]:-}"
-#BUILD_PLATFORMS="${BUILD_PLATFORMS[@]:-}"
-
 # Load common libraries
 source "${BUILD_SYSTEM_ROOT}/lib/common.sh"
 source "${BUILD_SYSTEM_ROOT}/lib/config.sh"
@@ -35,6 +31,7 @@ WORKDIR=""
 KEEP_WORKDIR=false
 APP_CONFIG_REL="build/app.json"
 
+ORIG_ARGS=("$@")
 ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,7 +48,7 @@ done
 
 [[ -n "$APP_REPO" ]] || die "missing required --repo <git-url>"
 
-# --- workspace ---
+# setup workdir
 WORKDIR="$(mktemp -d -t phxi-build.XXXXXX)"
 mkdir -p "$WORKDIR"
 if [[ "$KEEP_WORKDIR" != "true" ]]; then
@@ -87,7 +84,7 @@ if [[ -n "$RELEASE_TRACK_OVERRIDE" ]]; then
   export RELEASE_TRACK_OVERRIDE
 fi
 
-# Run steps from inside app repo so existing "dir:." evidence calls work
+# Run steps from inside app repo
 cd "$PHXI_SOURCE_DIR"
 
 log "==> (build) starting build-system from builder=${PHXI_BUILDER_DIR} source=${PHXI_SOURCE_DIR}"
@@ -95,7 +92,7 @@ log "==> (build) app=${APP} components=(${BUILD_COMPONENTS[*]}) platforms=(${BUI
 
 # Step 00 init
 log "==> (step) starting step 00-init"
-"$BUILD_SYSTEM_ROOT/steps/00-init.sh" "$SCRIPT_PATH" "${ARGS[@]}"
+"$BUILD_SYSTEM_ROOT/steps/00-init.sh" "$SCRIPT_PATH" "${ORIG_ARGS[@]}"
 
 # Step 10 build binaries
 log "==> (step) starting step 10-build-binaries"
@@ -112,6 +109,13 @@ log "==> (step) starting step 30-generate-evidence"
 # Step 40 generate inventory
 log "==> (step) starting step 40-generate-inventory"
 "$BUILD_SYSTEM_ROOT/steps/40-generate-inventory.sh"
+
+log "==> (build) build completed successfully. dist=${DIST}"
+
+# Step 50 mirror and save audit records
+log "==> (step) starting step 50-preserve-audit"
+"$BUILD_SYSTEM_ROOT/steps/50-preserve-audit.sh"
+
 
 ## smoke test: pick a component and detect local arch binary to run
 #log "==> (build) done. dist=${DIST}"

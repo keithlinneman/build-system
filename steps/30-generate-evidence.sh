@@ -57,8 +57,7 @@ for component in $( ctx_list_plan_components );do
   evidence_attest_component_index_scans "${component}"
 
   #for pkey in $( ctx_list_realized_platform_keys "$component" );do
-  set -x
-  for platform in $( ctx_list_plan_platforms "$component" );do
+  for platform in $( ctx_list_plan_platforms );do
     pkey="$( ctx_pkey_from_label "$platform" )"
     artifact_digest="$( ctx_get_artifact_digest "$component" "$pkey" )"
     subject_ref="$(ctx_get_artifact_field "$component" "$pkey" '.resolved.digest_ref')"
@@ -87,3 +86,6 @@ for component in $( ctx_list_plan_components );do
     evidence_attest_component_artifact_scan_reports "${component}" "${pkey}"
   done
 done
+
+log "==> (evidence) resolving refs (tag_ref/digest_ref)"
+ctx_materialize_resolved_refs

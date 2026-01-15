@@ -15,7 +15,7 @@ sha256_of() { sha256sum "$1" 2>/dev/null | awk '{print $1}'; }
 size_of()   { stat -c%s "$1" 2>/dev/null || stat -f%z "$1"; }
 
 add_to_array() {
-  # $1 = json array, $2 = json object (must be valid JSON)
+  # $1 = json array, $2 = json object
   jq --argjson o "$2" '. + [$o]' <<<"$1"
 }
 

@@ -4,8 +4,6 @@ generate_inventory_json() {
   local OUT="${DIST}/inventory.json"
   # cache avoids re-hashing the same file over and over
   declare -A _SHA _SZ
-
-  # ---------- build components{} ----------
   local components='{}'
 
   # get builder information
@@ -30,6 +28,11 @@ generate_inventory_json() {
   #generatedscriptargs_sha256="$( printf '%s\n' "${ORIGINAL_ARGS[@]}" | sha256sum | awk '{print $1}' )"
   #generatedscriptargs_json="$( jq -cn --args '$ARGS.positional' -- "${redacted_args[@]}" )"
   #generatedscriptargs_sha256="$( jq -cn --args '$ARGS.positional' -- "${ORIGINAL_ARGS[@]}" | sha256sum | awk '{print $1}' )"
+
+  # Buildctx-derived maps used now
+  local evidence_by_path oci_summary
+  evidence_by_path="$(ctx_evidence_by_path_json)"
+  oci_summary="$(ctx_inventory_oci_summary_json)"
 
   generatedscriptargs_json="$( args_json "${redacted_args[@]}" )"
   generatedscriptargs_sha256="$( printf '%s' "$ORIGINAL_ARGS_JSON" | sha256sum | awk '{print $1}' )"
@@ -68,20 +71,22 @@ generate_inventory_json() {
     components="$(jq --arg k "$comp" --argjson v "$(build_component_obj "$comp")" '. + {($k):$v}' <<<"$components")"
   done < <( ctx_list_components )
 
-  # ---------- build files[] inventory ----------
+  # build files[] inventory
   local files='[]'
   while IFS= read -r abs; do
     local rel
     rel="${abs#"${DIST}/"}"
-    # dont embed the manifest we are generating (or its .sig file) inside itself
+    # dont embed the manifests we are generating (or sigs) inside themselves
     [[ "$rel" == "release.json" ]] && continue
     [[ "$rel" == "release.json.sig" ]] && continue
+    [[ "$rel" == "inventory.json" ]] && continue
+    [[ "$rel" == "inventory.json.sig" ]] && continue
 
     local obj kind
     obj="$(file_obj "$rel")"
     kind="$(classify_kind "$rel")"
 
-    # if it's a binary, annotate os/arch
+    # if binary annotate os/arch
     local osarch os="" arch=""
     osarch="$(parse_os_arch_from_bin_rel "$rel")"
     if [[ -n "$osarch" ]]; then
@@ -89,19 +94,30 @@ generate_inventory_json() {
       arch="$(awk '{print $2}' <<<"$osarch")"
     fi
 
+     # attach evidence attestation info to evidence files by matching predicate.path == rel
+    local ev_json=""
+    ev_json="$(jq -c --arg p "$rel" '.[$p] // empty' <<<"$evidence_by_path" 2>/dev/null || true)"
+
+    # if binary attach OCI subject (resolved refs) from buildctx.
+    local subject_json=""
     if [ "${kind}" == "binary" ]; then
       local component
       component="$( discover_component_from_rel_path "$rel" )"
 
-      log "==> (evidence) locating build context oci subject for component:${component} os:${os} arch:${arch} (file:${rel})"
-      # find it in the oci subjects buildctx if present
-      local subject_json
-      subject_json="$( ctx_get_json ".oci.subjects[] | select(.component==\"${component}\") | select(.platform_label==\"${os}/${arch}\")" || true )"
-      log "subject_json=${subject_json}"
-
-      if [ "${subject_json}x" == "x" ]; then
-        die "could not find subject entry in buildctx for component:${component} os:${os} arch:${arch} (file:${rel})"
+      if [[ -z "$os" || -z "$arch" ]]; then
+        die "binary missing parsed os/arch (file=${rel})"
       fi
+
+      local label="${os}/${arch}"
+      log "==> (inventory) attaching buildctx subject for ${component} ${label} (file=${rel})"
+      subject_json="$(ctx_get_subject_for_component_platform "$component" "$label" 2>/dev/null || true)"
+      if [[ -z "${subject_json}" ]]; then
+        die "could not find buildctx subject for component=${component} label=${label} (file=${rel})"
+      fi
+      if [[ -z "$(jq -r '.resolved.digest_ref // empty' <<<"$subject_json")" ]]; then
+        die "subject missing resolved.digest_ref component=${component} label=${label}"
+      fi
+
     fi
 
     obj="$(jq -n \
@@ -109,7 +125,8 @@ generate_inventory_json() {
       --arg kind "$kind" \
       --arg os "$os" \
       --arg arch "$arch" \
-      --argjson oci "${subject_json:-null}" \
+      --argjson subject "${subject_json:-null}" \
+      --argjson evidence_referrer "${ev_json:-null}" \
       '
         $base
         +
@@ -120,20 +137,22 @@ generate_inventory_json() {
           else {}
         end)
         +
-        (if $oci != null then {oci:$oci} else {} end)
-      '
+        (if $subject != null then {oci_subject:$subject} else {} end)
+        +
+        (if $evidence_referrer != null then {oci_referrer:$evidence_referrer} else {} end)
+       '
     )"
     files="$(add_to_array "$files" "$obj")"
   done < <(find "$DIST" -type f | LC_ALL=C sort)
 
-  # ---------- policies ----------
+  # policies
   policy_enforcement="${policy_enforcement:-warn}"
   policy_overrides="${policy_overrides:-}"
   evidence_policy="$( jq -n '
   {
     required: {
       sbom: { formats: ["spdx-json","cyclonedx-json"], attestation_required: true },
-      vuln: { scanners: ["grype","trivy","govulncheck"], attestation_required: true },
+      scan: { scanners: ["grype","trivy","govulncheck"], attestation_required: true },
     },
     optional: {
       provenance: { enabled: false, attestation_required: true }
@@ -141,7 +160,7 @@ generate_inventory_json() {
   }
   ')"
 
-  vulnerability_policy="$( jq -n '
+  scan_policy="$( jq -n '
   {
     severity_system: "scanner-native",
     normalization: {
@@ -175,11 +194,11 @@ generate_inventory_json() {
   }
   ')"
 
-  # ---------- oras tooling ----------
+  # oras tooling
   local oras_ver
   oras_ver="$( oras version  | grep ^Version | awk '{ print $NF }' )"
 
-  # ---------- gather metadata ----------
+  # gather metadata
   #local app release_id created_at
   #app="${APP:-}"
   #release_id="${RELEASE_ID:-}"
@@ -219,19 +238,11 @@ generate_inventory_json() {
   syft_ver="$( syft version -o json | jq -r .version )"
   syft_commit="$( syft version -o json | jq -r .gitCommit )"
 
-  ## TODO signing hints (set in build pipeline)
-  # local cosign_key_ref="${COSIGN_KEY_REF:-${COSIGN_KEY:-${COSIGN_KMS_KEY:-${COSIGN_AWSKMS_KEY:-}}}}"
-  # local cosign_pubkey_path="${COSIGN_PUBKEY_PATH:-}"
-  # local cosign_pubkey_sha256=""
-  # if [[ -n "$cosign_pubkey_path" && -f "$cosign_pubkey_path" ]]; then
-  #   cosign_pubkey_sha256="$(sha256sum "$cosign_pubkey_path" | awk '{print $1}')"
-  # fi
-
   # distribution info (set in build pipeline)
   local bucket="${RELEASE_BUCKET:-${S3_BUCKET:-}}"
   local prefix="${RELEASE_PREFIX:-${S3_PREFIX:-}}"
 
-  # ---------- write inventory.json ----------
+  # write inventory.json
   jq -n -S \
     --arg schema "phxi.inventory.v1" \
     --arg app "$APP" \
@@ -239,9 +250,6 @@ generate_inventory_json() {
     --arg created_at "$BUILD_DATE" \
     --arg version "$RELEASE_VERSION" \
     --arg build_id "$BUILD_ID" \
-    --arg cosign_key_ref "$cosign_key_ref" \
-    --arg cosign_pubkey_path "$cosign_pubkey_path" \
-    --arg cosign_pubkey_sha256 "$cosign_pubkey_sha256" \
     --arg repo "$repo" \
     --arg commit "$commit" \
     --arg branch "$branch" \
@@ -271,13 +279,14 @@ generate_inventory_json() {
     --arg policy_enforcement "$policy_enforcement" \
     --argjson policy_overrides "${policy_overrides:-null}" \
     --argjson evidence_policy "${evidence_policy:-null}" \
-    --argjson vulnerability_policy "${vulnerability_policy:-null}" \
+    --argjson scan_policy "${scan_policy:-null}" \
     --argjson signing_policy "${signing_policy:-null}" \
     --argjson freshness_policy "${freshness_policy:-null}" \
     --argjson files "$files" \
     --argjson components "$components" \
     --argjson generated_by "$generated_by" \
     --argjson build_info "$build_info" \
+    --argjson oci_summary "$oci_summary" \
     '{
       schema:$schema,
       app:$app,
@@ -295,27 +304,15 @@ generate_inventory_json() {
       },
       build: $build_info,
       distribution:(if ($bucket != "" or $prefix != "") then {provider:"s3", bucket:$bucket, prefix:$prefix} else null end),
+      oci: (if ($oci_summary|type=="object" and ($oci_summary|keys|length)>0) then $oci_summary else null end),
       policy: (
         { enforcement: $policy_enforcement }
 	    + (if $policy_overrides     != null then {overrides:     $policy_overrides}     else {} end)
         + (if $evidence_policy      != null then {evidence:      $evidence_policy}      else {} end)
-        + (if $vulnerability_policy != null then {vulnerability: $vulnerability_policy} else {} end)
+        + (if $scan_policy != null then {scan: $scan_policy} else {} end)
         + (if $signing_policy       != null then {signing:       $signing_policy}       else {} end)
         + (if $freshness_policy     != null then {freshness:     $freshness_policy}     else {} end)
        | if length==0 then null else . end
-      ),
-      signing: (
-        if ($cosign_key_ref != "" or $cosign_pubkey_path != "" or $cosign_pubkey_sha256 != "")
-        then {
-          cosign: {
-            key_ref: (if $cosign_key_ref != "" then $cosign_key_ref else null end),
-            pubkey: {
-              path: (if $cosign_pubkey_path != "" then $cosign_pubkey_path else null end),
-              sha256: (if $cosign_pubkey_sha256 != "" then $cosign_pubkey_sha256 else null end)
-            } | with_entries(select(.value != null))
-          } | with_entries(select(.value != null))
-        }
-        else null end
       ),
       tooling:{
         go:{
@@ -386,4 +383,77 @@ generate_inventory_json() {
 
 args_json() {
   jq -cn --args '$ARGS.positional' -- "$@"
+}
+
+# Disabling shellcheck warning since the variables are used in jq expression
+# shellcheck disable=SC2016
+ctx_evidence_by_path_json() {
+  ctx_get_json '
+    def ev_stream:
+      (.components // {} | to_entries[]? as $ce
+        | (
+            # artifact evidence: components.<c>.artifacts.<p>.evidence.<slot>[]?
+            ($ce.value.artifacts // {} | to_entries[]? as $ae
+              | ($ae.value.evidence // {} | to_entries[]? | .value[]? )
+            ),
+            # index evidence: components.<c>.index.evidence.<slot>[]?
+            ($ce.value.index.evidence // {} | to_entries[]? | .value[]? )
+          )
+      );
+
+    [ ev_stream
+      | select(type=="object")
+      | select(.predicate? and (.predicate|type=="object"))
+      | select(.predicate.path? and (.predicate.path|type=="string") and (.predicate.path|length>0))
+    ]
+    | reduce .[] as $e ({}; .[$e.predicate.path] = $e)
+  ' 2>/dev/null || echo '{}'
+}
+
+# Build a compact OCI summary for inventory.json from buildctx
+# disabling shellcheck warning since the variables are used in jq expression
+# shellcheck disable=SC2016
+ctx_inventory_oci_summary_json() {
+  ctx_get_json '
+    (.components // {}) as $C
+    | ($C | to_entries)
+    | reduce .[] as $ce ({}; .[$ce.key] = (
+        {
+          oci: {
+            registry: ($ce.value.oci.registry // null),
+            repository: ($ce.value.oci.repository // null)
+          } | with_entries(select(.value != null)),
+          index: ($ce.value.index // null),
+          artifacts: ($ce.value.artifacts // {})
+        }
+        | .index = (
+            if .index == null then null else
+              (.index | {
+                kind, artifactType,
+                oci: (.oci // {} | with_entries(select(.value != null))),
+                resolved: (.resolved // {} | with_entries(select(.value != null))),
+                evidence: (.evidence // {} | with_entries(select(.value != null)))
+              } | with_entries(select(.value != null)))
+            end
+          )
+        | .artifacts = (
+            (.artifacts | to_entries)
+            | map(
+                .value as $a
+                | {
+                    platform_key: .key,
+                    platform_label: ($a.platform.label // null),
+                    kind: ($a.kind // null),
+                    artifactType: ($a.artifactType // null),
+                    oci: ($a.oci // {} | with_entries(select(.value != null))),
+                    resolved: ($a.resolved // {} | with_entries(select(.value != null))),
+                    evidence: ($a.evidence // {} | with_entries(select(.value != null)))
+                  }
+                  | with_entries(select(.value != null))
+              )
+            | sort_by(.platform_key)
+          )
+        | with_entries(select(.value != null))
+      ))
+  ' 2>/dev/null || echo '{}'
 }
