@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 
-signbinary()
+sign_file()
 {
   # Generate cosign files
   export AWS_SDK_LOAD_CONFIG=1
@@ -13,8 +13,9 @@ signbinary()
   #SIGNER_URI="$(aws --profile "${AWS_BASE_PROFILE}" ssm get-parameter --name "/platform/signing/${ENV}/cosign/signer" --query Parameter.Value --output text)"
   #log "==> using kms signer url $SIGNER_URI"
 
-  BIN="$1"
-  SIG="${BIN}.sig"
+  local file sig
+  file="$1"
+  sig="${file}.sig"
 
   # using subshell to separate env vars/creds that cosign relies on cleanly
   (
@@ -22,11 +23,11 @@ signbinary()
     # shellcheck disable=SC2030
     AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2 AWS_PROFILE="$AWS_KMS_SIGNER_PROFILE"
 
-    log "==> (sign) signing binary ${BIN} with cosign using aws_profile ${AWS_PROFILE}"
+    log "==> (sign) signing file ${file} with cosign using aws_profile ${AWS_PROFILE}"
     # not using rekor/sigstore at all for now - offline signing using kms key
-    log "==> (sign) cosign sign-blob --yes --tlog-upload=false --use-signing-config=false --new-bundle-format=false --key \"$SIGNER_URI\" --output-signature \"${SIG}\" \"$BIN\""
-    #cosign sign-blob --yes --tlog-upload=false --use-signing-config=false --new-bundle-format=false --key "$SIGNER_URI" --output-signature "${SIG}" "$BIN" 1>/dev/null 2>&1
-    if ! err="$( cosign sign-blob --yes --tlog-upload=false --use-signing-config=false --new-bundle-format=false --key "$SIGNER_URI" --output-signature "${SIG}" "$BIN" 2>&1 >/dev/null )"; then
+    log "==> (sign) cosign sign-blob --yes --tlog-upload=false --use-signing-config=false --new-bundle-format=false --key \"$SIGNER_URI\" --output-signature \"${sig}\" \"$file\""
+    #cosign sign-blob --yes --tlog-upload=false --use-signing-config=false --new-bundle-format=false --key "$SIGNER_URI" --output-signature "${sig}" "$file" 1>/dev/null 2>&1
+    if ! err="$( cosign_with_signer_aws sign-blob --yes --tlog-upload=false --use-signing-config=false --new-bundle-format=false --key "$SIGNER_URI" --output-signature "${sig}" "$file" 2>&1 >/dev/null )"; then
       die "ERROR: cosign sign-blob failed: $err"
     fi
   )
@@ -134,7 +135,7 @@ attest_file_dsse_v1() {
     export AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2 AWS_PROFILE="$AWS_KMS_SIGNER_PROFILE"
 
     log "==> (attest) cosign attest-blob (DSSE bundle)"
-    if ! err="$( cosign attest-blob --yes --tlog-upload=false --key "$SIGNER_URI" --statement "$tmp_statement" --bundle "$bundle_out" --output-file /dev/null 2>&1 >/dev/null )"; then
+    if ! err="$( cosign_with_signer_aws attest-blob --yes --tlog-upload=false --key "$SIGNER_URI" --statement "$tmp_statement" --bundle "$bundle_out" --output-file /dev/null 2>&1 >/dev/null )"; then
       die "ERROR: cosign attest-blob failed: $err"
       return 1
     fi

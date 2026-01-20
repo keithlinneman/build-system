@@ -25,3 +25,6 @@
 #  # scan binary with govulncheck for vulns (fail if vuln)
 #  log "==> (vuln-scan) scanning binary with govulncheck for vulns (fail if found)"
 #  govulncheck -mode=binary "./${fname}" || gateVulnRelease $?
+
+#echo "==> (preserve-audit) Setting desired release in SSM: ${SSM_RELEASE_PARAM} = ${BUILD_ID}"
+#aws --profile "${AWS_SSM_PROFILE}" ssm put-parameter --name "${SSM_RELEASE_PARAM}" --type String --value "${BUILD_ID}" --overwrite

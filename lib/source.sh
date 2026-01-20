@@ -7,6 +7,7 @@ source_checkout_repo() {
   local repo="$1"
   local ref="$2"
   local dest="$3"
+  export SOURCE_REPO_REF_REQUESTED="$ref"
 
   rm -rf "$dest"
   mkdir -p "$(dirname "$dest")"
@@ -33,5 +34,10 @@ source_checkout_repo() {
 
   git -C "$dest" checkout --detach "$sha" >/dev/null
 
-  log "==> (source) checked out repo=$repo ref=$ref sha=$sha dir=$dest"
+  export SOURCE_REPO_SHA="$sha"
+  export SOURCE_REPO_DIR="$dest"
+  export SOURCE_REPO_REF_RESOLVED="$ref"
+  export SOURCE_DETATCHED=true
+  
+  log "==> (source) checked out repo=$repo ref_requested=$SOURCE_REPO_REF_REQUESTED ref_resolved=$SOURCE_REPO_REF_RESOLVED sha=$SOURCE_REPO_SHA dir=$SOURCE_REPO_DIR"
 }

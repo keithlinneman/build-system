@@ -3,7 +3,7 @@
 generate_inventory_json() {
   local OUT="${DIST}/inventory.json"
   # cache avoids re-hashing the same file over and over
-  declare -A _SHA _SZ
+  #declare -A _SHA _SZ
   local components='{}'
 
   # get builder information
@@ -145,54 +145,7 @@ generate_inventory_json() {
     files="$(add_to_array "$files" "$obj")"
   done < <(find "$DIST" -type f | LC_ALL=C sort)
 
-  # policies
-  policy_enforcement="${policy_enforcement:-warn}"
-  policy_overrides="${policy_overrides:-}"
-  evidence_policy="$( jq -n '
-  {
-    required: {
-      sbom: { formats: ["spdx-json","cyclonedx-json"], attestation_required: true },
-      scan: { scanners: ["grype","trivy","govulncheck"], attestation_required: true },
-    },
-    optional: {
-      provenance: { enabled: false, attestation_required: true }
-    }
-  }
-  ')"
-
-  scan_policy="$( jq -n '
-  {
-    severity_system: "scanner-native",
-    normalization: {
-      strategy: "worst"
-    },
-    gating: {
-      default: {
-        block_on: ["critical","high"],
-        allow_if_vex: true
-      }
-    }
-  }
-  ')"
-
-  signing_policy="$( jq -n '
-  {
-    required: {
-      subject: true,
-      inventory: true
-    }
-  }
-  ')"
-
-  freshness_policy="$( jq -n '
-  {
-    max_age_hours: {
-      trivy_db_observed: 72,
-      grype_db_built: 72,
-      govulndb_upstream_modified: 168
-    }
-  }
-  ')"
+  
 
   # oras tooling
   local oras_ver
@@ -204,18 +157,19 @@ generate_inventory_json() {
   #release_id="${RELEASE_ID:-}"
   #created_at="${BUILD_DATE:-}"
 
-  # git best-effort
-  local repo commit branch tag
-  repo="$(git config --get remote.origin.url 2>/dev/null || true)"
-  commit="$(git rev-parse HEAD 2>/dev/null || true)"
-  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  tag="$(git describe --tags --exact-match 2>/dev/null || true)"
+  ## git best-effort
+  #local repo commit branch tag
+  #repo="$(git config --get remote.origin.url 2>/dev/null || true)"
+  #commit="$(git rev-parse HEAD 2>/dev/null || true)"
+  #branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  #tag="$(git describe --tags --exact-match 2>/dev/null || true)"
 
-  # normalize dirty -> JSON boolean
-  local dirty_raw="${DIRTY:-false}"
-  local dirty_json="false"
-  [[ "$dirty_raw" == "true" ]] && dirty_json="true"
+  ## normalize dirty -> JSON boolean
+  #local dirty_raw="${DIRTY:-false}"
+  #local dirty_json="false"
+  #[[ "$dirty_raw" == "true" ]] && dirty_json="true"
 
+  source="$( ctx_get .source )"
   go_ver="$( go version | awk '{print $3}' || true)"
   cosign_ver="$( cosign version --json=true | jq -r .gitVersion || true )"
   grype_ver="$( grype version -o json | jq -r .version )"
@@ -250,11 +204,6 @@ generate_inventory_json() {
     --arg created_at "$BUILD_DATE" \
     --arg version "$RELEASE_VERSION" \
     --arg build_id "$BUILD_ID" \
-    --arg repo "$repo" \
-    --arg commit "$commit" \
-    --arg branch "$branch" \
-    --arg tag "$tag" \
-    --argjson dirty "$dirty_json" \
     --arg go_ver "$go_ver" \
     --arg cosign_ver "$cosign_ver" \
     --arg oras_ver "$oras_ver" \
@@ -276,17 +225,12 @@ generate_inventory_json() {
     --arg syft_ver "$syft_ver" \
     --arg syft_commit "$syft_commit" \
     --arg prefix "$prefix" \
-    --arg policy_enforcement "$policy_enforcement" \
-    --argjson policy_overrides "${policy_overrides:-null}" \
-    --argjson evidence_policy "${evidence_policy:-null}" \
-    --argjson scan_policy "${scan_policy:-null}" \
-    --argjson signing_policy "${signing_policy:-null}" \
-    --argjson freshness_policy "${freshness_policy:-null}" \
     --argjson files "$files" \
     --argjson components "$components" \
     --argjson generated_by "$generated_by" \
     --argjson build_info "$build_info" \
     --argjson oci_summary "$oci_summary" \
+    --argjson source "$source" \
     '{
       schema:$schema,
       app:$app,
@@ -295,25 +239,10 @@ generate_inventory_json() {
       build_id:(if $build_id != "" then $build_id else null end),
       created_at:$created_at,
       generated_by:$generated_by | with_entries(select(.value != null)),
-      source:{
-        repo:$repo,
-        commit:$commit,
-        branch:$branch,
-        tag:$tag,
-        dirty:$dirty
-      },
+      source:$source,
       build: $build_info,
       distribution:(if ($bucket != "" or $prefix != "") then {provider:"s3", bucket:$bucket, prefix:$prefix} else null end),
       oci: (if ($oci_summary|type=="object" and ($oci_summary|keys|length)>0) then $oci_summary else null end),
-      policy: (
-        { enforcement: $policy_enforcement }
-	    + (if $policy_overrides     != null then {overrides:     $policy_overrides}     else {} end)
-        + (if $evidence_policy      != null then {evidence:      $evidence_policy}      else {} end)
-        + (if $scan_policy != null then {scan: $scan_policy} else {} end)
-        + (if $signing_policy       != null then {signing:       $signing_policy}       else {} end)
-        + (if $freshness_policy     != null then {freshness:     $freshness_policy}     else {} end)
-       | if length==0 then null else . end
-      ),
       tooling:{
         go:{
           version:$go_ver,
@@ -456,4 +385,40 @@ ctx_inventory_oci_summary_json() {
         | with_entries(select(.value != null))
       ))
   ' 2>/dev/null || echo '{}'
+}
+
+attest_inventory_json_to_indexes() {
+  set -euo pipefail
+  [[ -n "${DIST:-}" ]] || die "attest_release_json_to_indexes: DIST not set"
+  [[ -f "${DIST}/inventory.json" ]] || die "attest_release_json_to_indexes: missing ${DIST}/inventory.json"
+
+  local inv_abs="${DIST}/inventory.json"
+  # local pred_abs="${DIST}/inventory.json"
+
+  local pred_type="${PRED_INVENTORY_DESCRIPTOR:-https://phxi.net/attestations/inventory/v1}"
+  #local out_dir="${DIST}/_repo/attestations/release/inventory"
+  local out_dir="${DIST}"
+  mkdir -p "$out_dir"
+
+  jq -r '.components | keys[]' "$inv_abs" | while IFS= read -r component; do
+    local subject
+    subject="$(jq -r --arg c "$component" '.components[$c].oci_index.digest_ref // empty' "$inv_abs")"
+    [[ -n "$subject" ]] || die "release attest: missing oci_index.digest_ref for component=$component"
+
+    log "==> (release) attesting inventory.json -> ${component} index ${subject}"
+
+    local out=()
+    if ! mapfile -t out < <(cosign_attest_predicate "$subject" "$inv_abs" "$pred_type"); then
+      die "release attest: cosign_attest_predicate failed for component=$component subject=$subject"
+    fi
+    [[ ${#out[@]} -eq 4 ]] || die "release attest: unexpected cosign_attest_predicate output for component=$component"
+
+    local att_digest_ref="${out[0]}"
+
+    local dsse_abs="${out_dir}/inventory.json.intoto.v1.dsse.json"
+    local manifest_abs="${out_dir}/inventory.json.oci.manifest.json"
+
+    # save dsse_abs and manifest_abs (manifest content only)
+    oci_fetch_attestation_dsse "$att_digest_ref" "$dsse_abs" "$manifest_abs" >/dev/null
+  done
 }

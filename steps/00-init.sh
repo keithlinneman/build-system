@@ -10,11 +10,12 @@ source "$basepath/lib/common.sh"
 source "$basepath/lib/config.sh"
 source "$basepath/lib/appcfg.sh"
 source "$basepath/lib/buildctx.sh"
+source "$basepath/lib/gating.sh"
 
 buildscript="${1:?expected buildscript path as arg1}"
 shift || true
 
-# re-load all of the same variables as build.sh did because you cant export arrays and the only var we are interested in is an array
+# load the app variables for a second time because arrays are not exportable and we use them for initializing buildctx here
 appcfg_load_json "${PHXI_APP_CONFIG}"
 
 # Generate initial build context
@@ -23,6 +24,11 @@ ctx_build_init "$buildscript" "$@" || exit 1
 
 log "==> (init) loading build context from ${BUILDCTX_PATH}"
 ctx_export_release_vars
+
+# Gate: verify source/build repo integrity if track is stable
+log "==> (init) gating source/build repos for release_track=${RELEASE_TRACK}"
+gate_dirty_source_repo "${RELEASE_TRACK}"
+gate_dirty_build_repo "${RELEASE_TRACK}"
 
 if [ "${#BUILD_COMPONENTS[@]}" -eq 0 ]; then
   die "no build components defined in build context!"

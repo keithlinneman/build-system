@@ -106,53 +106,22 @@ log "==> (step) starting step 20-push-oci"
 log "==> (step) starting step 30-generate-evidence"
 "$BUILD_SYSTEM_ROOT/steps/30-generate-evidence.sh"
 
-# Step 40 generate inventory
-log "==> (step) starting step 40-generate-inventory"
-"$BUILD_SYSTEM_ROOT/steps/40-generate-inventory.sh"
-
-log "==> (build) build completed successfully. dist=${DIST}"
+# Step 40 generate release
+log "==> (step) starting step 40-generate-release"
+"$BUILD_SYSTEM_ROOT/steps/40-generate-release.sh"
 
 # Step 50 mirror and save audit records
 log "==> (step) starting step 50-preserve-audit"
 "$BUILD_SYSTEM_ROOT/steps/50-preserve-audit.sh"
 
+# # Step 60 generate TUF files
+# log "==> (step) starting step 60-generate-tuf"
+# "$BUILD_SYSTEM_ROOT/steps/60-generate-tuf.sh"
+
+# # Step 70 promote release
+# log "==> (step) starting step 70-promote-release"
+# "$BUILD_SYSTEM_ROOT/steps/70-promote-release.sh"
 
 ## smoke test: pick a component and detect local arch binary to run
 #log "==> (build) done. dist=${DIST}"
-
-
-# log "==> (build) beginning build of app=${APP} components=${BUILD_COMPONENTS} for release_version=${RELEASE_VERSION} build_id=${BUILD_ID} track=${RELEASE_TRACK} platforms=${BUILD_PLATFORMS}"
-
-# # Step 00 init
-# log "==> (step) starting step 00-init"
-# build/steps/00-init.sh "${SCRIPT_PATH}" "$@"
-
-# # Step 10 build binaries
-# log "==> (step) starting step 10-build-binaries"
-# build/steps/10-build-binaries.sh
-
-# # Step 20 push oci artifacts
-# log "==> (step) starting step 20-push-oci"
-# build/steps/20-push-oci.sh
-
-# # Step 30 generate evidence
-# log "==> (step) starting step 30-generate-evidence"
-# build/steps/30-generate-evidence.sh
-
-# # Step 40 generate inventory
-# log "==> (step) starting step 40-generate-inventory"
-# build/steps/40-generate-inventory.sh 
-
-# # test we can at least run the latest build without error
-# dist/web/bin/linux/amd64/sitesuper-web -V || exit "1"
-
-# #S3BASE="s3://${DEPLOYMENT_BUCKET}/apps/${APP}/releases/${VERSION}/${BUILD_ID}/"
-# #echo "==> (deploy) Uploading release to ${S3BASE}"
-
-# #aws --profile "${AWS_S3_PROFILE}" s3 cp --recursive "dist/" "${S3BASE}"
-
-# #echo "==> (deploy) Setting desired release in SSM: ${SSM_RELEASE_PARAM} = ${BUILD_ID}"
-# #aws --profile "${AWS_SSM_PROFILE}" ssm put-parameter --name "${SSM_RELEASE_PARAM}" --type String --value "${BUILD_ID}" --overwrite
-
-# #echo "==> (deploy) listing s3 release contents"
-# #aws --profile net-prod s3 ls --recursive --human-readable "${S3BASE}"
+log "==> (build) build app=${APP} completed successfully. dist=${DIST}"

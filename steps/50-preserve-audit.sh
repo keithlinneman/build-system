@@ -9,19 +9,15 @@ basepath="${SCRIPT_DIR%/*}"
 source "$basepath/lib/common.sh"
 source "$basepath/lib/config.sh"
 source "$basepath/lib/buildctx.sh"
-
+source "$basepath/lib/preserve.sh"
 
 log "==> (preserve-audit) starting step 50-preserve-audit"
 
 log "==> (preserve-audit) loading build context from ${BUILDCTX_PATH}"
 ctx_export_release_vars
 
-S3BASE="s3://${DEPLOYMENT_BUCKET}/apps/${APP}/releases/${RELEASE_VERSION}/${BUILD_ID}/"
-echo "==> (preserve-audit) Uploading release to ${S3BASE}"
-aws --profile "${AWS_S3_PROFILE}" s3 cp --recursive "${DIST}/" "${S3BASE}"
+log "==> (preserve-audit) preserving audit artifacts to S3"
+preserve_audit_artifacts
 
-#echo "==> (preserve-audit) Setting desired release in SSM: ${SSM_RELEASE_PARAM} = ${BUILD_ID}"
-#aws --profile "${AWS_SSM_PROFILE}" ssm put-parameter --name "${SSM_RELEASE_PARAM}" --type String --value "${BUILD_ID}" --overwrite
-
-echo "==> (preserve-audit) listing s3 release contents"
-aws --profile net-prod s3 ls --recursive --human-readable "${S3BASE}"
+log "==> (preserve-audit) listing s3 release contents"
+list_audit_artifacts

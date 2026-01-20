@@ -124,10 +124,13 @@ ctx_build_init() {
   buildplatforms_json="$(printf '%s\n' "${BUILD_PLATFORMS[@]}" | jq -R . | jq -s .)"
 
   # --- SOURCE git info (app repo) ---
-  local repo_url repo_branch commit commit_short commit_date_raw commit_date commit_tag repo_dirty
+  local repo_url repo_branch commit commit_short commit_date_raw commit_date commit_tag repo_dirty detached ref
   repo_url="$(git -C "$src_dir" config --get remote.origin.url 2>/dev/null || true)"
-  repo_branch="$(git -C "$src_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  commit="$(git -C "$src_dir" rev-parse HEAD 2>/dev/null || true)"
+  #repo_branch="$(git -C "$src_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  repo_branch="${SOURCE_REPO_REF_RESOLVED:-unknown}"
+  ref="${SOURCE_REPO_REF_REQUESTED:-unknown}"
+  detached="${SOURCE_DETATCHED:-false}"
+  commit="${SOURCE_REPO_SHA:-$(git -C "$src_dir" rev-parse HEAD 2>/dev/null || true)}"
   commit_short="$(git -C "$src_dir" rev-parse --short=7 HEAD 2>/dev/null || true)"
   commit_date_raw="$(git -C "$src_dir" log -1 --format=%cI 2>/dev/null || true)"
   commit_date="$(date -d "$commit_date_raw" -u "+%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || true)"
@@ -202,6 +205,8 @@ ctx_build_init() {
     --arg commit_short "$commit_short" \
     --arg commit_date "$commit_date" \
     --arg commit_tag "${commit_tag:-}" \
+    --argjson detached "${detached:-true}" \
+    --arg ref "${ref:-}" \
     --arg base_tag "${base_tag:-}" \
     --arg commits_since_tag "${commits_since_tag:-}" \
     --argjson repo_dirty "$repo_dirty" \
@@ -233,14 +238,16 @@ ctx_build_init() {
       },
       source: ({
         repo: $repo_url,
-        branch: $repo_branch,
+        resolved_branch: $repo_branch,
+        ref: $ref,
         commit: $commit,
         commit_short: $commit_short,
         commit_date: $commit_date,
         tag: ($commit_tag | select(length>0) // null),
         base_tag: ($base_tag | select(length>0) // null),
         commits_since_tag: (($commits_since_tag | tonumber?) // null),
-        dirty: $repo_dirty
+        dirty: $repo_dirty,
+        detached: $detached
       } | with_entries(select(.value != null))),
       builder: ({
         repo: $buildrepo_url,
@@ -350,7 +357,7 @@ ctx_artifact_set_local() {
           size: null,
           pushed_at: null
         },
-        evidence: { sbom: [], scan: [], provenance: [], sig: [] },
+        evidence: { sbom: [], scan: [], license: [], provenance: [], sig: [] },
         resolved: {}
       })
       | .platform = { os: $os, arch: $arch, label: $label, key: $p }

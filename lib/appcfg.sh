@@ -34,13 +34,14 @@ appcfg_load_json() {
   AWS_SSM_PROFILE="$(jq -r '.aws.profiles.ssm' "$cfg_path")"
   AWS_KMS_SIGNER_PROFILE="$(jq -r '.aws.profiles.kms_signer' "$cfg_path")"
 
-  export PRED_SBOM_SPDX PRED_SBOM_CDX PRED_VULN_TRIVY PRED_VULN_GRYPE PRED_VULN_GOVULNCHECK PRED_LICENSE_REPORT
+  export PRED_SBOM_SPDX PRED_SBOM_CDX PRED_VULN_TRIVY PRED_VULN_GRYPE PRED_VULN_GOVULNCHECK PRED_LICENSE_REPORT PRED_RELEASE_DESCRIPTOR
   PRED_SBOM_SPDX="$(jq -r '.predicates.sbom_spdx' "$cfg_path")"
   PRED_SBOM_CDX="$(jq -r '.predicates.sbom_cdx' "$cfg_path")"
   PRED_VULN_TRIVY="$(jq -r '.predicates.vuln_trivy' "$cfg_path")"
   PRED_VULN_GRYPE="$(jq -r '.predicates.vuln_grype' "$cfg_path")"
   PRED_VULN_GOVULNCHECK="$(jq -r '.predicates.vuln_govulncheck' "$cfg_path")"
   PRED_LICENSE_REPORT="$(jq -r '.predicates.license_report' "$cfg_path")"
+  PRED_RELEASE_DESCRIPTOR="$(jq -r '.predicates.release_descriptor' "$cfg_path")"
   export APP_CFG_PATH="$cfg_path"
 }
 

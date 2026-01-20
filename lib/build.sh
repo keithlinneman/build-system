@@ -32,7 +32,7 @@ initialize_build_env() {
 
   build_binary "${component}" "${os}" "${arch}" "${out_file}"
 
-  log "==> (build) generating sha256 sidecar"
+  log "==> (build) generating sha256 for ${out_file}"
   ( cd "$(dirname "$out_file")" && sha256sum "$(basename "$out_file")" > "$(basename "$out_file").sha256" )
 
   local sha256 size
