@@ -119,8 +119,8 @@ log "==> (step) starting step 50-preserve-audit"
 # "$BUILD_SYSTEM_ROOT/steps/60-generate-tuf.sh"
 
 # # Step 70 promote release
-# log "==> (step) starting step 70-promote-release"
-# "$BUILD_SYSTEM_ROOT/steps/70-promote-release.sh"
+log "==> (step) starting step 70-promote"
+"$BUILD_SYSTEM_ROOT/steps/70-promote.sh"
 
 ## smoke test: pick a component and detect local arch binary to run
 #log "==> (build) done. dist=${DIST}"

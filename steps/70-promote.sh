@@ -1,4 +1,21 @@
 #!/bin/bash
+set -Eeuo pipefail
+shopt -s inherit_errexit 2>/dev/null || true
+export PS4='+ [sub=${BASH_SUBSHELL:-?}] SOURCE:${BASH_SOURCE:-?} LINENO:${LINENO:-?} FUNC:${FUNCNAME[0]:-MAIN}: '
+trap 'RC=$?; echo "ERROR(rc=$RC) at ${BASH_SOURCE[0]:-?}:${LINENO:-?} in ${FUNCNAME[0]:-MAIN}: ${BASH_COMMAND:-?}" >&2; exit $RC' ERR
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+# SCRIPT_PATH="${SCRIPT_DIR}/$(basename -- "${BASH_SOURCE[0]}")"
+
+basepath="${SCRIPT_DIR%/*}"
+source "$basepath/lib/common.sh"
+source "$basepath/lib/config.sh"
+source "$basepath/lib/buildctx.sh"
+
+log "==> (release) starting step 70-promote"
+
+log "==> (release) loading build context from ${BUILDCTX_PATH}"
+ctx_export_release_vars
 
 ## gate releases on govulncheck reporting 0 vulns ( may change to high/crit at some point)
 #log "==> (vuln-scan) scanning source with govulncheck for vulnerabilities"
@@ -26,5 +43,6 @@
 #  log "==> (vuln-scan) scanning binary with govulncheck for vulns (fail if found)"
 #  govulncheck -mode=binary "./${fname}" || gateVulnRelease $?
 
-#echo "==> (preserve-audit) Setting desired release in SSM: ${SSM_RELEASE_PARAM} = ${BUILD_ID}"
-#aws --profile "${AWS_SSM_PROFILE}" ssm put-parameter --name "${SSM_RELEASE_PARAM}" --type String --value "${BUILD_ID}" --overwrite
+# Set the desired release in SSM params for deploy models that use this path
+echo "==> (promote) Setting desired release in SSM: ${SSM_RELEASE_PARAM} = ${RELEASE_ID}"
+aws --profile "${AWS_SSM_PROFILE}" ssm put-parameter --name "${SSM_RELEASE_PARAM}" --type String --value "${RELEASE_ID}" --overwrite

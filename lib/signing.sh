@@ -25,9 +25,9 @@ sign_file()
 
     log "==> (sign) signing file ${file} with cosign using aws_profile ${AWS_PROFILE}"
     # not using rekor/sigstore at all for now - offline signing using kms key
-    log "==> (sign) cosign sign-blob --yes --tlog-upload=false --use-signing-config=false --new-bundle-format=false --key \"$SIGNER_URI\" --output-signature \"${sig}\" \"$file\""
-    #cosign sign-blob --yes --tlog-upload=false --use-signing-config=false --new-bundle-format=false --key "$SIGNER_URI" --output-signature "${sig}" "$file" 1>/dev/null 2>&1
-    if ! err="$( cosign_with_signer_aws sign-blob --yes --tlog-upload=false --use-signing-config=false --new-bundle-format=false --key "$SIGNER_URI" --output-signature "${sig}" "$file" 2>&1 >/dev/null )"; then
+    log "==> (sign) cosign sign-blob --yes --use-signing-config=false --new-bundle-format=false --key \"$SIGNER_URI\" --output-signature \"${sig}\" \"$file\""
+    #cosign sign-blob --yes --use-signing-config=false --new-bundle-format=false --key "$SIGNER_URI" --output-signature "${sig}" "$file" 1>/dev/null 2>&1
+    if ! err="$( cosign_with_signer_aws sign-blob --yes --use-signing-config=false --new-bundle-format=false --key "$SIGNER_URI" --output-signature "${sig}" "$file" 2>&1 >/dev/null )"; then
       die "ERROR: cosign sign-blob failed: $err"
     fi
   )
@@ -135,7 +135,7 @@ attest_file_dsse_v1() {
     export AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2 AWS_PROFILE="$AWS_KMS_SIGNER_PROFILE"
 
     log "==> (attest) cosign attest-blob (DSSE bundle)"
-    if ! err="$( cosign_with_signer_aws attest-blob --yes --tlog-upload=false --key "$SIGNER_URI" --statement "$tmp_statement" --bundle "$bundle_out" --output-file /dev/null 2>&1 >/dev/null )"; then
+    if ! err="$( cosign_with_signer_aws attest-blob --yes --key "$SIGNER_URI" --statement "$tmp_statement" --bundle "$bundle_out" --output-file /dev/null 2>&1 >/dev/null )"; then
       die "ERROR: cosign attest-blob failed: $err"
       return 1
     fi
@@ -170,7 +170,6 @@ cosign_attest_predicate() {
     --key "${SIGNER_URI}" \
     --predicate "${predicate_path}" \
     --type "${predicate_type}" \
-    --tlog-upload=false \
     "${subject}" >/dev/null
 
   # Get list of referrers after
