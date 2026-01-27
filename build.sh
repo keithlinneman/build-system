@@ -60,15 +60,23 @@ fi
 export PHXI_WORKDIR="$WORKDIR"
 export PHXI_SOURCE_DIR="$WORKDIR/src"
 export PHXI_BUILDER_DIR="$BUILD_SYSTEM_ROOT"
-export PHXI_APP_CONFIG="${PHXI_SOURCE_DIR}/build/app.json"
 
 export DIST="$WORKDIR/dist"
 export BUILDCTX_PATH="$WORKDIR/state/buildctx.json"
 
 mkdir -p "$WORKDIR/state" "$DIST"
 
-log "==> (build) checking out source repo to ${PHXI_SOURCE_DIR}"
-source_checkout_repo "$APP_REPO" "$APP_REF" "$PHXI_SOURCE_DIR"
+# if repo is a local path (. or /path/to/repo) use it directly
+# otherwise assume its a repo url and clone it
+if [[ -d "${APP_REPO}/.git" ]]; then
+  log "==> using local repo at ${APP_REPO}"
+  export PHXI_SOURCE_DIR="$( cd "$APP_REPO" && pwd -P )"
+else
+  log "==> (build) checking out source repo ${APP_REPO} ref=${APP_REF} to ${PHXI_SOURCE_DIR}"
+  source_checkout_repo "$APP_REPO" "$APP_REF" "$PHXI_SOURCE_DIR"
+fi
+export PHXI_APP_CONFIG="${PHXI_SOURCE_DIR}/build/app.json"
+
 
 # app repo provides build settings (APP, BUILD_COMPONENTS, BUILD_PLATFORMS, VERPKG, etc.)
 if [[ -f "${PHXI_SOURCE_DIR}/${APP_CONFIG_REL}" ]]; then
