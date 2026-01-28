@@ -234,7 +234,7 @@ cosign_with_signer_aws() {
   log "==> (signing) running cosign with AWS_REGION=${region}"
   # intentionally calling this from a subshell, suppress shellcheck subshell warnings
   # shellcheck disable=SC2030 disable=SC2031
-  AWS_SDK_LOAD_CONFIG=1 AWS_REGION="$region" AWS_DEFAULT_REGION="$region" AWS_EC2_METADATA_DISABLED=true cosign "$@"
+  AWS_REGION="$region" AWS_DEFAULT_REGION="$region" cosign "$@"
 }
 
 oci_fetch_attestation_dsse() {
