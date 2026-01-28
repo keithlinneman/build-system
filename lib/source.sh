@@ -1,5 +1,4 @@
-#!/bin/bash
-set -Eeuo pipefail
+# shellcheck shell=bash
 
 # usage: source_checkout_repo <repo_url> <ref> <dest_dir>
 # - ref can be tag, sha, branch, or origin/HEAD

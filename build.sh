@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -Eeuo pipefail
 shopt -s inherit_errexit 2>/dev/null || true
 export PS4='+ [sub=${BASH_SUBSHELL:-?}] SOURCE:${BASH_SOURCE:-?} LINENO:${LINENO:-?} FUNC:${FUNCNAME[0]:-MAIN}: '
@@ -70,13 +70,12 @@ mkdir -p "$WORKDIR/state" "$DIST"
 # otherwise assume its a repo url and clone it
 if [[ -d "${APP_REPO}/.git" ]]; then
   log "==> using local repo at ${APP_REPO}"
-  export PHXI_SOURCE_DIR="$( cd "$APP_REPO" && pwd -P )"
+  PHXI_SOURCE_DIR="$( cd "$APP_REPO" && pwd -P )"
 else
   log "==> (build) checking out source repo ${APP_REPO} ref=${APP_REF} to ${PHXI_SOURCE_DIR}"
   source_checkout_repo "$APP_REPO" "$APP_REF" "$PHXI_SOURCE_DIR"
 fi
 export PHXI_APP_CONFIG="${PHXI_SOURCE_DIR}/build/app.json"
-
 
 # app repo provides build settings (APP, BUILD_COMPONENTS, BUILD_PLATFORMS, VERPKG, etc.)
 if [[ -f "${PHXI_SOURCE_DIR}/${APP_CONFIG_REL}" ]]; then
