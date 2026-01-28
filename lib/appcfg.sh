@@ -60,17 +60,30 @@ appcfg_component_repo() {
 
 config_resolve_ssm_params() {
   # Resolve SSM parameters for deployment bucket and release param if they are SSM paths
-  if [[ "$DEPLOYMENT_BUCKET" == ssm:* ]]; then
+  if [[ "$DEPLOYMENT_BUCKET" == ssm:* || "$DEPLOYMENT_BUCKET" == arn:*:ssm:* ]]; then
     local param_name="${DEPLOYMENT_BUCKET#ssm:}"
     DEPLOYMENT_BUCKET="$(aws ssm get-parameter --name "$param_name" --query Parameter.Value --output text)"
   fi
-  if [[ "$SSM_RELEASE_PARAM" == ssm:* ]]; then
+  if [[ "$SSM_RELEASE_PARAM" == ssm:* || "$SSM_RELEASE_PARAM" == arn:*:ssm:* ]]; then
     local param_name="${SSM_RELEASE_PARAM#ssm:}"
-    SSM_RELEASE_PARAM="$(aws  ssm get-parameter --name "$param_name" --query Parameter.Value --output text)"
+    SSM_RELEASE_PARAM="$(aws ssm get-parameter --name "$param_name" --query Parameter.Value --output text)"
   fi
+
   ## Get environment name from SSM
-  ENV="$(aws ssm get-parameter --name "/platform/env/name" --query Parameter.Value --output text)"
-  ## Used for cosign signing of artifacts 
-  SIGNER_URI="$(aws ssm get-parameter --name "/platform/signing/${ENV}/cosign/signer" --query Parameter.Value --output text)"
+  local env_param
+  env_param="$( jq -r '.aws.ssm_env_param' "$APP_CFG_PATH")"
+  ENV="$(aws ssm get-parameter --name "$env_param" --query Parameter.Value --output text)"
+  if [[ -z "$ENV" ]]; then
+    die "failed to resolve required SSM parameters ENV"
+  fi
+
+  ## Get cosign key url used for signing artifacts
+  local signer_param
+  signer_param="$( jq -r '.aws.ssm_cosign_signer_param' "$APP_CFG_PATH")"
+  SIGNER_URI="$(aws ssm get-parameter --name "${signer_param}" --query Parameter.Value --output text)"
+  if [[ -z "$SIGNER_URI" ]]; then
+    die "failed to resolve required SSM parameters SIGNER_URI"
+  fi
+
   export ENV SIGNER_URI
 }
