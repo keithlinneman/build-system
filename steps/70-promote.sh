@@ -45,4 +45,4 @@ ctx_export_release_vars
 
 # Set the desired release in SSM params for deploy models that use this path
 echo "==> (promote) Setting desired release in SSM: ${SSM_RELEASE_PARAM} = ${RELEASE_ID}"
-aws --profile "${AWS_SSM_PROFILE}" ssm put-parameter --name "${SSM_RELEASE_PARAM}" --type String --value "${RELEASE_ID}" --overwrite
+aws ssm put-parameter --name "${SSM_RELEASE_PARAM}" --type String --value "${RELEASE_ID}" --overwrite

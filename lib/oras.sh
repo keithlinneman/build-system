@@ -8,7 +8,7 @@ initialize_oci() {
   SOURCE_REPO="$( ctx_get '.source.repo' )"
 
   log "==> (oci) getting oras login credentials"
-  aws ecr get-login-password --region us-east-2 --profile "${AWS_BASE_PROFILE}" | \
+  aws ecr get-login-password --region us-east-2 | \
     oras login --username AWS --password-stdin "${OCI_REGISTRY}"
 
   ctx_materialize_resolved_refs
