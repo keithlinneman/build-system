@@ -16,8 +16,46 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     ca-certificates \
-    jq \
     && rm -rf /var/lib/apt/lists/*
+
+# Install jq pinned version
+RUN curl -sSL https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64 -o /usr/local/bin/jq \
+    && echo "020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d  /usr/local/bin/jq" | sha256sum -c - \
+    && chmod +x /usr/local/bin/jq
+
+# Install oras pinned version
+RUN curl -sSL https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_linux_amd64.tar.gz -o /tmp/oras.tar.gz \
+    && echo "6cdc692f929100feb08aa8de584d02f7bcc30ec7d88bc2adc2054d782db57c64  /tmp/oras.tar.gz" | sha256sum -c - \
+    && tar -xzvf /tmp/oras.tar.gz -C /usr/local/bin oras \
+    && chmod +x /usr/local/bin/oras
+
+# Install syft pinned version
+RUN curl -sSL https://github.com/anchore/syft/releases/download/v1.41.0/syft_1.41.0_linux_amd64.tar.gz -o /tmp/syft.tar.gz \
+    && echo "cd00ebbf7b7c0a9f69a7ac1170ad2e9ed2de389db7fd96a61d8220daf0606d98  /tmp/syft.tar.gz" | sha256sum -c - \
+    && tar -xzvf /tmp/syft.tar.gz -C /usr/local/bin syft \
+    && chmod +x /usr/local/bin/syft
+
+# Install trivy pinned version
+RUN curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.68.2/trivy_0.68.2_Linux-64bit.tar.gz -o /tmp/trivy.tar.gz \
+    && echo "3d933bbc3685f95ec15280f620583d05d97ee3affb66944d14481d5d6d567064  /tmp/trivy.tar.gz" | sha256sum -c - \
+    && tar -xzvf /tmp/trivy.tar.gz -C /usr/local/bin trivy \
+    && chmod +x /usr/local/bin/trivy
+
+# Install grype pinned version
+RUN curl -sSL https://github.com/anchore/grype/releases/download/v0.106.0/grype_0.106.0_linux_amd64.tar.gz -o /tmp/grype.tar.gz \
+    && echo "573e73c54978f54650610bd395aa42871a950e4f515f7a4c23c1b6e3df873336  /tmp/grype.tar.gz" | sha256sum -c - \
+    && tar -xzvf /tmp/grype.tar.gz -C /usr/local/bin grype \
+    && chmod +x /usr/local/bin/grype
+
+# Install cyclonedx-gomod pinned version
+RUN curl -sSL https://github.com/CycloneDX/cyclonedx-gomod/releases/download/v1.9.0/cyclonedx-gomod_1.9.0_linux_amd64.tar.gz -o /tmp/cyclonedx-gomod.tar.gz \
+    && echo "e6d3b3a409b1c84ccef79ad15f9127d80c430a92d5c4f9e621bc2f0f3ee6d423  /tmp/cyclonedx-gomod.tar.gz" | sha256sum -c - \
+    && tar -xzvf /tmp/cyclonedx-gomod.tar.gz -C /usr/local/bin cyclonedx-gomod \
+    && chmod +x /usr/local/bin/cyclonedx-gomod
+
+
+# Install govulncheck pinned version
+RUN go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
 # Copy build system files
 COPY . /build-system/
