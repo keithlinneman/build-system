@@ -1,5 +1,10 @@
+# pull in aws cli v2
+FROM amazon/aws-cli:2.33.8 AS awscli
 # Using minimal debian image to start
 FROM debian:bookworm-slim
+
+COPY --from=awscli /usr/local/aws-cli /usr/local/aws-cli
+RUN ln -s /usr/local/aws-cli/v2/current/bin/aws /usr/local/bin/aws
 
 # Install necessary packages
 RUN apt-get update && apt-get install -y \
