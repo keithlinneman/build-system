@@ -9,7 +9,6 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
 basepath="${SCRIPT_DIR%/*}"
 source "$basepath/lib/common.sh"
-source "$basepath/lib/config.sh"
 source "$basepath/lib/buildctx.sh"
 
 log "==> (release) starting step 70-promote"

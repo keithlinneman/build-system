@@ -9,7 +9,6 @@ BUILD_SYSTEM_ROOT="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}")" && pwd -P )"
 
 # Load common libraries
 source "${BUILD_SYSTEM_ROOT}/lib/common.sh"
-#source "${BUILD_SYSTEM_ROOT}/lib/config.sh"
 source "${BUILD_SYSTEM_ROOT}/lib/source.sh"
 source "${BUILD_SYSTEM_ROOT}/lib/appcfg.sh"
 

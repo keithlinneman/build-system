@@ -7,7 +7,6 @@ trap 'RC=$?; echo "ERROR(rc=$RC) at ${BASH_SOURCE[0]:-?}:${LINENO:-?} in ${FUNCN
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 basepath="${SCRIPT_DIR%/*}"
 source "$basepath/lib/common.sh"
-source "$basepath/lib/config.sh"
 source "$basepath/lib/appcfg.sh"
 source "$basepath/lib/buildctx.sh"
 source "$basepath/lib/gating.sh"
