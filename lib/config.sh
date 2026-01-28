@@ -4,11 +4,11 @@ config_resolve_ssm_params() {
   # Resolve SSM parameters for deployment bucket and release param if they are SSM paths
   if [[ "$DEPLOYMENT_BUCKET" == ssm:* ]]; then
     local param_name="${DEPLOYMENT_BUCKET#ssm:}"
-    DEPLOYMENT_BUCKET="$(aws --profile "${AWS_SSM_PROFILE:-$AWS_BASE_PROFILE}" ssm get-parameter --name "$param_name" --query Parameter.Value --output text)"
+    DEPLOYMENT_BUCKET="$(aws ssm get-parameter --name "$param_name" --query Parameter.Value --output text)"
   fi
   if [[ "$SSM_RELEASE_PARAM" == ssm:* ]]; then
     local param_name="${SSM_RELEASE_PARAM#ssm:}"
-    SSM_RELEASE_PARAM="$(aws --profile "${AWS_SSM_PROFILE:-$AWS_BASE_PROFILE}" ssm get-parameter --name "$param_name" --query Parameter.Value --output text)"
+    SSM_RELEASE_PARAM="$(aws ssm get-parameter --name "$param_name" --query Parameter.Value --output text)"
   fi
 }
 

@@ -21,9 +21,9 @@ sign_file()
   (
     # intentionally doing this in a subshell, suppress shellcheck subshell warnings
     # shellcheck disable=SC2030
-    AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2 AWS_PROFILE="$AWS_KMS_SIGNER_PROFILE"
+    AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2
 
-    log "==> (sign) signing file ${file} with cosign using aws_profile ${AWS_PROFILE}"
+    log "==> (sign) signing file ${file} with cosign"
     # not using rekor/sigstore at all for now - offline signing using kms key
     log "==> (sign) cosign sign-blob --yes --use-signing-config=false --new-bundle-format=false --key \"$SIGNER_URI\" --output-signature \"${sig}\" \"$file\""
     #cosign sign-blob --yes --use-signing-config=false --new-bundle-format=false --key "$SIGNER_URI" --output-signature "${sig}" "$file" 1>/dev/null 2>&1
@@ -132,7 +132,7 @@ attest_file_dsse_v1() {
 
     # intentionally doing this in a subshell, suppress shellcheck subshell warnings
     # shellcheck disable=SC2031 disable=SC2030
-    export AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2 AWS_PROFILE="$AWS_KMS_SIGNER_PROFILE"
+    export AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2
 
     log "==> (attest) cosign attest-blob (DSSE bundle)"
     if ! err="$( cosign_with_signer_aws attest-blob --yes --key "$SIGNER_URI" --statement "$tmp_statement" --bundle "$bundle_out" --output-file /dev/null 2>&1 >/dev/null )"; then
@@ -228,14 +228,13 @@ cosign_attest_predicate() {
 }
 
 cosign_with_signer_aws() {
-  local profile="${AWS_KMS_SIGNER_PROFILE:?AWS_KMS_SIGNER_PROFILE required}"
   # shellcheck disable=SC2030 disable=SC2031
   local region="${AWS_REGION:-us-east-2}"
 
-  log "==> (signing) running cosign with AWS_PROFILE=${profile} AWS_REGION=${region}"
+  log "==> (signing) running cosign with AWS_REGION=${region}"
   # intentionally calling this from a subshell, suppress shellcheck subshell warnings
   # shellcheck disable=SC2030 disable=SC2031
-  AWS_PROFILE="$profile" AWS_SDK_LOAD_CONFIG=1 AWS_REGION="$region" AWS_DEFAULT_REGION="$region" AWS_EC2_METADATA_DISABLED=true cosign "$@"
+  AWS_SDK_LOAD_CONFIG=1 AWS_REGION="$region" AWS_DEFAULT_REGION="$region" AWS_EC2_METADATA_DISABLED=true cosign "$@"
 }
 
 oci_fetch_attestation_dsse() {
