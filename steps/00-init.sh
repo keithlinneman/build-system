@@ -33,9 +33,6 @@ if [ "${#BUILD_COMPONENTS[@]}" -eq 0 ]; then
   die "no build components defined in build context!"
 fi
 
-log "==> (init) PWD=$(pwd)"
-log "==> (init) BUILDCTX_PATH=${BUILDCTX_PATH}"
-log "==> (init) BUILDCTX_REAL=$(realpath -m "${BUILDCTX_PATH}" 2>/dev/null || echo "${BUILDCTX_PATH}")"
 log "==> (init) build.components=$(jq -c '.build.components' "${BUILDCTX_PATH}")"
 
 # Init build context for each component

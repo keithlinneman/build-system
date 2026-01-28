@@ -29,6 +29,11 @@ RUN curl -sSL https://github.com/oras-project/oras/releases/download/v1.3.0/oras
     && tar -xzvf /tmp/oras.tar.gz -C /usr/local/bin oras \
     && chmod +x /usr/local/bin/oras
 
+# Install cosign pinned version
+RUN curl -sSL https://github.com/sigstore/cosign/releases/download/v3.0.4/cosign-linux-amd64 -o /usr/local/bin/cosign \
+    && echo "10dab2fd2170b5aa0d5c0673a9a2793304960220b314f6a873bf39c2f08287aa /usr/local/bin/cosign" | sha256sum -c - \
+    && chmod +x /usr/local/bin/cosign
+
 # Install syft pinned version
 RUN curl -sSL https://github.com/anchore/syft/releases/download/v1.41.0/syft_1.41.0_linux_amd64.tar.gz -o /tmp/syft.tar.gz \
     && echo "cd00ebbf7b7c0a9f69a7ac1170ad2e9ed2de389db7fd96a61d8220daf0606d98  /tmp/syft.tar.gz" | sha256sum -c - \
@@ -52,7 +57,6 @@ RUN curl -sSL https://github.com/CycloneDX/cyclonedx-gomod/releases/download/v1.
     && echo "e6d3b3a409b1c84ccef79ad15f9127d80c430a92d5c4f9e621bc2f0f3ee6d423  /tmp/cyclonedx-gomod.tar.gz" | sha256sum -c - \
     && tar -xzvf /tmp/cyclonedx-gomod.tar.gz -C /usr/local/bin cyclonedx-gomod \
     && chmod +x /usr/local/bin/cyclonedx-gomod
-
 
 # Install govulncheck pinned version
 RUN go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
