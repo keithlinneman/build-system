@@ -301,7 +301,7 @@ generate_component_inventory_json() {
           modsum:$cyclonedx_gomod_modsum,
           category: "sbom-generator"
         },
-      },,
+      },
       component:     $component
     }
     | with_entries(select(.value != null))
