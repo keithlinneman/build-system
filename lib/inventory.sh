@@ -38,8 +38,8 @@ generate_component_inventory_json() {
   #generatedscriptargs_sha256="$( jq -cn --args '$ARGS.positional' -- "${ORIGINAL_ARGS[@]}" | sha256sum | awk '{print $1}' )"
 
   # Buildctx-derived maps used now
-  local evidence_by_path oci_summary
-  evidence_by_path="$(ctx_evidence_by_path_json)"
+  # local evidence_by_path oci_summary
+  # evidence_by_path="$(ctx_evidence_by_path_json)"
   oci_summary="$(ctx_inventory_oci_summary_json)"
 
   generatedscriptargs_json="$( args_json "${redacted_args[@]}" )"
@@ -234,8 +234,7 @@ generate_component_inventory_json() {
     --arg syft_ver "$syft_ver" \
     --arg syft_commit "$syft_commit" \
     --arg prefix "$prefix" \
-    --argjson files "$files" \
-    --argjson component "$component" \
+    --arg component "$component" \
     --argjson generated_by "$generated_by" \
     --argjson build_info "$build_info" \
     --argjson oci_summary "$oci_summary" \
