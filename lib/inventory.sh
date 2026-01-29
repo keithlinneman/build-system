@@ -81,81 +81,80 @@ generate_component_inventory_json() {
   #   components="$(jq --arg k "$comp" --argjson v "$(build_component_obj "$comp")" '. + {($k):$v}' <<<"$components")"
   # done < <( ctx_list_components )
 
+  # 1/29/26 - not currently used commenting to save cpu time
   # build files[] inventory
-  local files='[]'
-  while IFS= read -r abs; do
-    local rel
-    rel="${abs#"${DIST}/${component}/"}"
-    # dont embed the manifests we are generating (or sigs) inside themselves
-    [[ "$rel" == "release.json" ]] && continue
-    [[ "$rel" == "release.json.sig" ]] && continue
-    [[ "$rel" == "inventory.json" ]] && continue
-    [[ "$rel" == "inventory.json.sig" ]] && continue
+  # local files='[]'
+  # while IFS= read -r abs; do
+  #   local rel
+  #   rel="${abs#"${DIST}/${component}/"}"
+  #   # dont embed the manifests we are generating (or sigs) inside themselves
+  #   [[ "$rel" == "release.json" ]] && continue
+  #   [[ "$rel" == "release.json.sig" ]] && continue
+  #   [[ "$rel" == "inventory.json" ]] && continue
+  #   [[ "$rel" == "inventory.json.sig" ]] && continue
 
-    local obj kind
-    obj="$(file_obj "$rel")"
-    kind="$(classify_kind "$rel")"
+  #   local obj kind
+  #   obj="$(file_obj "$rel")"
+  #   kind="$(classify_kind "$rel")"
 
-    # if binary annotate os/arch
-    local osarch os="" arch=""
-    osarch="$(parse_os_arch_from_bin_rel "$rel")"
-    if [[ -n "$osarch" ]]; then
-      os="$(awk '{print $1}' <<<"$osarch")"
-      arch="$(awk '{print $2}' <<<"$osarch")"
-    fi
+  #   # if binary annotate os/arch
+  #   local osarch os="" arch=""
+  #   osarch="$(parse_os_arch_from_bin_rel "$rel")"
+  #   if [[ -n "$osarch" ]]; then
+  #     os="$(awk '{print $1}' <<<"$osarch")"
+  #     arch="$(awk '{print $2}' <<<"$osarch")"
+  #   fi
 
-     # attach evidence attestation info to evidence files by matching predicate.path == rel
-    local ev_json=""
-    ev_json="$(jq -c --arg p "$rel" '.[$p] // empty' <<<"$evidence_by_path" 2>/dev/null || true)"
+  #    # attach evidence attestation info to evidence files by matching predicate.path == rel
+  #   local ev_json=""
+  #   ev_json="$(jq -c --arg p "$rel" '.[$p] // empty' <<<"$evidence_by_path" 2>/dev/null || true)"
 
-    # if binary attach OCI subject (resolved refs) from buildctx.
-    local subject_json=""
-    if [ "${kind}" == "binary" ]; then
-      local component
-      component="$( discover_component_from_rel_path "$rel" )"
+  #   # if binary attach OCI subject (resolved refs) from buildctx.
+  #   local subject_json=""
+  #   if [ "${kind}" == "binary" ]; then
+  #     local component
+  #     component="$( discover_component_from_rel_path "$rel" )"
 
-      if [[ -z "$os" || -z "$arch" ]]; then
-        die "binary missing parsed os/arch (file=${rel})"
-      fi
+  #     if [[ -z "$os" || -z "$arch" ]]; then
+  #       die "binary missing parsed os/arch (file=${rel})"
+  #     fi
 
-      local label="${os}/${arch}"
-      log "==> (inventory) attaching buildctx subject for ${component} ${label} (file=${rel})"
-      subject_json="$(ctx_get_subject_for_component_platform "$component" "$label" 2>/dev/null || true)"
-      if [[ -z "${subject_json}" ]]; then
-        die "could not find buildctx subject for component=${component} label=${label} (file=${rel})"
-      fi
-      if [[ -z "$(jq -r '.resolved.digest_ref // empty' <<<"$subject_json")" ]]; then
-        die "subject missing resolved.digest_ref component=${component} label=${label}"
-      fi
+  #     local label="${os}/${arch}"
+  #     log "==> (inventory) attaching buildctx subject for ${component} ${label} (file=${rel})"
+  #     subject_json="$(ctx_get_subject_for_component_platform "$component" "$label" 2>/dev/null || true)"
+  #     if [[ -z "${subject_json}" ]]; then
+  #       die "could not find buildctx subject for component=${component} label=${label} (file=${rel})"
+  #     fi
+  #     if [[ -z "$(jq -r '.resolved.digest_ref // empty' <<<"$subject_json")" ]]; then
+  #       die "subject missing resolved.digest_ref component=${component} label=${label}"
+  #     fi
 
-    fi
+  #   fi
 
-    obj="$(jq -n \
-      --argjson base "$obj" \
-      --arg kind "$kind" \
-      --arg os "$os" \
-      --arg arch "$arch" \
-      --argjson subject "${subject_json:-null}" \
-      --argjson evidence_referrer "${ev_json:-null}" \
-      '
-        $base
-        +
-        {kind:$kind}
-        +
-        (if $os != ""
-          then {os:$os, arch:$arch}
-          else {}
-        end)
-        +
-        (if $subject != null then {oci_subject:$subject} else {} end)
-        +
-        (if $evidence_referrer != null then {oci_referrer:$evidence_referrer} else {} end)
-       '
-    )"
-    files="$(add_to_array "$files" "$obj")"
-  done < <(find "$DIST/${component}" -type f | LC_ALL=C sort)
-
-  
+  #   obj="$(jq -n \
+  #     --argjson base "$obj" \
+  #     --arg kind "$kind" \
+  #     --arg os "$os" \
+  #     --arg arch "$arch" \
+  #     --argjson subject "${subject_json:-null}" \
+  #     --argjson evidence_referrer "${ev_json:-null}" \
+  #     '
+  #       $base
+  #       +
+  #       {kind:$kind}
+  #       +
+  #       (if $os != ""
+  #         then {os:$os, arch:$arch}
+  #         else {}
+  #       end)
+  #       +
+  #       (if $subject != null then {oci_subject:$subject} else {} end)
+  #       +
+  #       (if $evidence_referrer != null then {oci_referrer:$evidence_referrer} else {} end)
+  #      '
+  #   )"
+  #   files="$(add_to_array "$files" "$obj")"
+  # done < <(find "$DIST/${component}" -type f | LC_ALL=C sort)
 
   # oras tooling
   local oras_ver
