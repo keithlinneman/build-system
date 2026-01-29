@@ -12,7 +12,7 @@ generate_component_inventory_json() {
   #declare -A _SHA _SZ
   local component="$1"
   shift || true
-  local OUT="${DIST}/inventory.json"
+  local OUT="${DIST}/${component}/inventory.json"
 
   # get builder information
   build_info="$( ctx_get_json '.builder' )"
