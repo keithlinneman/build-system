@@ -104,14 +104,14 @@ release_min_builder_json() {
 }
 
 generate_release_json() {
-  set -euo pipefail
+  local component="$1"
   [[ -n "${DIST:-}" ]] || die "generate_release_json: DIST not set"
-  [[ -f "${DIST}/inventory.json" ]] || die "generate_release_json: missing ${DIST}/inventory.json"
   [[ -n "${BUILDCTX_PATH:-}" && -f "${BUILDCTX_PATH}" ]] || die "generate_release_json: BUILDCTX_PATH missing/not a file"
 
   local inv_abs inv_rel
-  inv_abs="${DIST}/inventory.json"
+  inv_abs="${DIST}/${component}/inventory.json"
   inv_rel="$( dist_relpath "${inv_abs}" )"
+  [[ -f "${inv_abs}" ]] || die "generate_release_json: missing ${inv_abs}"
 
   local schema="phxi.release.v1"
   local app version build_id release_id created_at created_epoch track

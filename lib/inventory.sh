@@ -234,7 +234,7 @@ generate_component_inventory_json() {
     --arg syft_ver "$syft_ver" \
     --arg syft_commit "$syft_commit" \
     --arg prefix "$prefix" \
-    --arg component "$component" \
+    --argjson component "$component" \
     --argjson generated_by "$generated_by" \
     --argjson build_info "$build_info" \
     --argjson oci_summary "$oci_summary" \
@@ -301,10 +301,8 @@ generate_component_inventory_json() {
           modsum:$cyclonedx_gomod_modsum,
           category: "sbom-generator"
         },
-      },
-      source_manifest:   ($components._repo.build? // null),
-      source_evidence:($components._repo.source_evidence? // null),
-      component:     ($component | del(._repo))
+      },,
+      component:     $component
     }
     | with_entries(select(.value != null))
     | (if (.subjects? | type=="array" and length==0) then del(.subjects) else . end)

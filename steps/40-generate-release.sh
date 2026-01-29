@@ -25,9 +25,14 @@ ctx_export_release_vars
 log "==> (release) generating release.json"
 generate_release_json || die "failed to generate release json!"
 
-# attest release.json to all component indexes
-log "==> (release) attesting release.json to component indexes"
-attest_release_json_to_indexes
-
-# sign the release.json for s3 release flow verification
-sign_file "${DIST}/release.json"
+## Generate per-component release manifest
+log "==> (evidence) generating per-component release manifests"
+for component in $( ctx_list_plan_components );do
+  # generate release.json manifest for component
+  generate_release_json "$component" || die "failed to generate release manifest for component=${component}!"
+  # attest release.json to component index
+  log "==> (release) attesting release.json to component indexes"
+  attest_release_json_to_indexes "$component" || die "failed to attest release.json to component indexes for component=${component}!"
+  # sign the release.json for s3 release flow verification
+  sign_file "${DIST}/release.json"
+done
