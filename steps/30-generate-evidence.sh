@@ -29,12 +29,13 @@ scanner_init
 log "==> (evidence) initializing oci environment"
 initialize_oci
 
+# 1/29/26 - removing repo-wide evidence for now. may re-add and copy into each component as _repo still later
 # Generate repo-wide evidence
-log "==> (evidence) generating app-wide evidence"
-evidence_generate_repo_source_sboms
+# log "==> (evidence) generating app-wide evidence"
+# evidence_generate_repo_source_sboms
 
-log "==> (evidence) generating repo source scan reports"
-evidence_generate_repo_source_scan_reports
+# log "==> (evidence) generating repo source scan reports"
+# evidence_generate_repo_source_scan_reports
 
 ## Generate per-component evidence
 log "==> (evidence) generating per-component evidence"
@@ -91,18 +92,20 @@ for component in $( ctx_list_plan_components );do
     # evidence_attach_artifact_scan_reports "${component}" "${pkey}" "${subject_ref}"
     evidence_attest_component_artifact_scan_reports "${component}" "${pkey}"
   done
+
+  log "==> (evidence) resolving refs (tag_ref/digest_ref)"
+  ctx_materialize_resolved_refs
+
+  log "==> (evidence) initializing OCI artifacts maps for inventory"
+  evidence_init_oci_maps
+
+  # Generate per-component inventory.json, containing sizes, sha256sums, paths, everything for sboms/scans/licenses/signatures/provnence/etc
+  log "==> (inventory) generating component inventory.json"
+  generate_component_inventory_json "${component}" "${SCRIPT_PATH}" "$@" || die "failed to generate inventory json!"
+
+  # attest release.json to all component indexes
+  log "==> (evidence) attesting inventory.json to component index"
+  attest_inventory_json_to_index "${component}"
+
 done
 
-log "==> (evidence) resolving refs (tag_ref/digest_ref)"
-ctx_materialize_resolved_refs
-
-log "==> (evidence) initializing OCI artifacts maps for inventory"
-evidence_init_oci_maps
-
-# Generate inventory.json, containing sizes, sha256sums, paths, everything for sboms/scans/licenses/signatures/provnence/etc
-log "==> (inventory) generating inventory.json"
-generate_inventory_json "${SCRIPT_PATH}" "$@" || die "failed to generate inventory json!"
-
-# attest release.json to all component indexes
-log "==> (evidence) attesting inventory.json to component indexes"
-attest_inventory_json_to_indexes

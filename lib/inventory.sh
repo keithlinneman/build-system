@@ -1,10 +1,18 @@
 # shellcheck shell=bash
 
-generate_inventory_json() {
-  local OUT="${DIST}/inventory.json"
+# generate_inventory_json() {
+#  for component in $( ctx_list_components ); do
+#    log "==> (inventory) generating inventory.json for component=${component}"
+#    generate_component_inventory_json "$component" "$@" || die "failed to generate inventory json for component=${component}"
+#  done
+# }
+
+generate_component_inventory_json() {
   # cache avoids re-hashing the same file over and over
   #declare -A _SHA _SZ
-  local components='{}'
+  local component="$1"
+  shift || true
+  local OUT="${DIST}/inventory.json"
 
   # get builder information
   build_info="$( ctx_get_json '.builder' )"
@@ -60,22 +68,24 @@ generate_inventory_json() {
     }' \
   )"
 
+  # skipping repo-level scans/sboms/etc for now
   # include a pseudo "_repo" component if root-level evidence exists
   # this gets moved to root level source_manifest and source_evidence in final jq, keeps parsing simpler for now
-  if [[ -f "${DIST}/build.json" || -d "${DIST}/sbom" || -d "${DIST}/scan" || -d "${DIST}/attestations" ]]; then
-    components="$(jq --arg k "_repo" --argjson v "$(build_component_obj "_repo")" '. + {($k):$v}' <<<"$components")"
-  fi
+  # if [[ -f "${DIST}/build.json" || -d "${DIST}/sbom" || -d "${DIST}/scan" || -d "${DIST}/attestations" ]]; then
+  #   components="$(jq --arg k "_repo" --argjson v "$(build_component_obj "_repo")" '. + {($k):$v}' <<<"$components")"
+  # fi
 
-  while IFS= read -r comp; do
-    [[ -n "$comp" ]] || continue
-    components="$(jq --arg k "$comp" --argjson v "$(build_component_obj "$comp")" '. + {($k):$v}' <<<"$components")"
-  done < <( ctx_list_components )
+  # moving to component based releases for now
+  # while IFS= read -r comp; do
+  #   [[ -n "$comp" ]] || continue
+  #   components="$(jq --arg k "$comp" --argjson v "$(build_component_obj "$comp")" '. + {($k):$v}' <<<"$components")"
+  # done < <( ctx_list_components )
 
   # build files[] inventory
   local files='[]'
   while IFS= read -r abs; do
     local rel
-    rel="${abs#"${DIST}/"}"
+    rel="${abs#"${DIST}/${component}/"}"
     # dont embed the manifests we are generating (or sigs) inside themselves
     [[ "$rel" == "release.json" ]] && continue
     [[ "$rel" == "release.json.sig" ]] && continue
@@ -143,7 +153,7 @@ generate_inventory_json() {
        '
     )"
     files="$(add_to_array "$files" "$obj")"
-  done < <(find "$DIST" -type f | LC_ALL=C sort)
+  done < <(find "$DIST/${component}" -type f | LC_ALL=C sort)
 
   
 
@@ -226,7 +236,7 @@ generate_inventory_json() {
     --arg syft_commit "$syft_commit" \
     --arg prefix "$prefix" \
     --argjson files "$files" \
-    --argjson components "$components" \
+    --argjson component "$component" \
     --argjson generated_by "$generated_by" \
     --argjson build_info "$build_info" \
     --argjson oci_summary "$oci_summary" \
@@ -296,7 +306,7 @@ generate_inventory_json() {
       },
       source_manifest:   ($components._repo.build? // null),
       source_evidence:($components._repo.source_evidence? // null),
-      components:     ($components | del(._repo))
+      component:     ($component | del(._repo))
     }
     | with_entries(select(.value != null))
     | (if (.subjects? | type=="array" and length==0) then del(.subjects) else . end)
@@ -387,17 +397,17 @@ ctx_inventory_oci_summary_json() {
   ' 2>/dev/null || echo '{}'
 }
 
-attest_inventory_json_to_indexes() {
-  set -euo pipefail
+attest_inventory_json_to_index() {
+  local component="$1"
   [[ -n "${DIST:-}" ]] || die "attest_release_json_to_indexes: DIST not set"
-  [[ -f "${DIST}/inventory.json" ]] || die "attest_release_json_to_indexes: missing ${DIST}/inventory.json"
+  [[ -f "${DIST}/${component}/inventory.json" ]] || die "attest_release_json_to_indexes: missing ${DIST}/${component}/inventory.json"
 
-  local inv_abs="${DIST}/inventory.json"
-  # local pred_abs="${DIST}/inventory.json"
+  local inv_abs="${DIST}/${component}/inventory.json"
+  # local pred_abs="${DIST}/${component}/inventory.json"
 
   local pred_type="${PRED_INVENTORY_DESCRIPTOR:-https://phxi.net/attestations/inventory/v1}"
   #local out_dir="${DIST}/_repo/attestations/release/inventory"
-  local out_dir="${DIST}"
+  local out_dir="${DIST}/${component}/"
   mkdir -p "$out_dir"
 
   jq -r '.components | keys[]' "$inv_abs" | while IFS= read -r component; do
