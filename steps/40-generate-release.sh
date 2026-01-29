@@ -34,5 +34,5 @@ for component in $( ctx_list_plan_components );do
   log "==> (release) attesting release.json to component indexes"
   attest_release_json_to_indexes "$component" || die "failed to attest release.json to component indexes for component=${component}!"
   # sign the release.json for s3 release flow verification
-  sign_file "${DIST}/release.json"
+  sign_release_json_for_component "$component" || die "failed to sign release.json for component=${component}!"
 done
