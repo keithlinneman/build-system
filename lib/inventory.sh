@@ -234,7 +234,7 @@ generate_component_inventory_json() {
     --arg syft_ver "$syft_ver" \
     --arg syft_commit "$syft_commit" \
     --arg prefix "$prefix" \
-    --argjson component "$component" \
+    --arg component "$component" \
     --argjson generated_by "$generated_by" \
     --argjson build_info "$build_info" \
     --argjson oci_summary "$oci_summary" \
