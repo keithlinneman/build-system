@@ -102,7 +102,7 @@ release_min_builder_json() {
 }
 
 generate_component_release_json() {
-  local component="$1:?component name required"
+  local component="${1:?component name required}"
   local OUT="${DIST}/${component}/release.json"
   [[ -n "${DIST:-}" ]] || die "generate_release_json: DIST not set"
   [[ -n "${BUILDCTX_PATH:-}" && -f "${BUILDCTX_PATH}" ]] || die "generate_release_json: BUILDCTX_PATH missing/not a file"
