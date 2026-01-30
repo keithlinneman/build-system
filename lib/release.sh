@@ -148,7 +148,7 @@ generate_component_release_json() {
     --arg track "$track" \
     --argjson inventory "$inv_obj" \
     --argjson distribution "$dist_obj" \
-    --argjson component "$component" \
+    --arg component "$component" \
     --argjson release_data "$release_data" \
     --argjson source "$source" \
     --argjson builder "$builder" \
