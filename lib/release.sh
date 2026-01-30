@@ -46,7 +46,7 @@ release_distribution_json() {
   local build_id="${3:?build_id required}"
 
   local bucket="${DEPLOYMENT_BUCKET:-}"
-  local prefix="${DEPLOYMENT_BUCKET_PREFIX:-apps/${app}/releases/${version}/${build_id}/}"
+  local prefix="${DEPLOYMENT_BUCKET_PREFIX:-apps/${app}/releases/${release_id}/}"
 
   prefix="${prefix#/}"
   [[ "$prefix" == */ ]] || prefix="${prefix}/"
