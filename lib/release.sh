@@ -102,7 +102,8 @@ release_min_builder_json() {
 }
 
 generate_component_release_json() {
-  local component="$1"
+  local component="$1:?component name required"
+  local OUT="${DIST}/${component}/release.json"
   [[ -n "${DIST:-}" ]] || die "generate_release_json: DIST not set"
   [[ -n "${BUILDCTX_PATH:-}" && -f "${BUILDCTX_PATH}" ]] || die "generate_release_json: BUILDCTX_PATH missing/not a file"
 
@@ -161,9 +162,9 @@ generate_component_release_json() {
       files: { inventory: $inventory },
       distribution: $distribution
     } | with_entries(select(.value != null))' \
-    > "${DIST}/release.json"
+    > "${OUT}"
 
-  log "==> (release) wrote ${DIST}/release.json"
+  log "==> (release) wrote ${OUT}"
 }
 
 # attest_release_json_to_indexes() {
