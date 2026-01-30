@@ -101,7 +101,7 @@ release_min_builder_json() {
   jq -c '.builder | {repo, branch, commit, commit_short, commit_date, dirty}' "$ctx_abs"
 }
 
-generate_release_json() {
+generate_component_release_json() {
   local component="$1"
   [[ -n "${DIST:-}" ]] || die "generate_release_json: DIST not set"
   [[ -n "${BUILDCTX_PATH:-}" && -f "${BUILDCTX_PATH}" ]] || die "generate_release_json: BUILDCTX_PATH missing/not a file"
