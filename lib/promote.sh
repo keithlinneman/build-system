@@ -16,15 +16,20 @@ promote_component_release() {
   local component="$1"
   local ssm_release_param="/app/${APP}/${component}/deploy/${RELEASE_TRACK}/release/id"
 
-  if [[ ! -n "${DEPLOY_ASSUME_ROLE}" || "${DEPLOY_ASSUME_ROLE}" == "null" ]]; then
-    die "no assume role configured for promoting component=${component} releases!"
+  ## Get role arn to assume for promoting releases
+  local assume_role_param deploy_assume_role
+  assume_role_param="/app/${APP}/deploy/role/arn"
+
+  deploy_assume_role="$(aws ssm get-parameter --name "${assume_role_param}" --query Parameter.Value --output text)"
+  if [[ -z "$deploy_assume_role" ]]; then
+    die "failed to resolve required SSM parameters deploy_assume_role"
   fi
 
   # assume role in workload account in a subshell
   (
-    log "==> (promote) assuming role=${DEPLOY_ASSUME_ROLE} for component=${component} promotion"
+    log "==> (promote) assuming role=${deploy_assume_role} for component=${component} promotion"
     local credentials
-    credentials="$( aws sts assume-role --role-arn "${DEPLOY_ASSUME_ROLE}" --role-session-name "promote-${component}-release-${RELEASE_ID:0:8}" )"
+    credentials="$( aws sts assume-role --role-arn "${deploy_assume_role}" --role-session-name "promote-${component}-${RELEASE_ID:0:8}" )"
     export AWS_ACCESS_KEY_ID
     export AWS_SECRET_ACCESS_KEY
     export AWS_SESSION_TOKEN
