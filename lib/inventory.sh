@@ -40,6 +40,9 @@ generate_component_inventory_json() {
   # Buildctx-derived maps used now
   # local evidence_by_path oci_summary
   # evidence_by_path="$(ctx_evidence_by_path_json)"
+  
+  # Get full component object with source_evidence, targets, oci_index, build                                                                                                                                                                                                                                        
+  component_obj="$(build_component_obj "$component")"        
   oci_summary="$(ctx_inventory_oci_summary_json)"
 
   generatedscriptargs_json="$( args_json "${redacted_args[@]}" )"
@@ -48,7 +51,7 @@ generate_component_inventory_json() {
   generated_by="$( jq -n \
     --arg host "$generated_host" \
     --arg tool "phxi-build" \
-    --arg step "40-generate-inventory" \
+    --arg step "30-generate-evidence" \
     --arg script "$generated_script" \
     --arg script_sha256 "$generatedscript_sha256" \
     --argjson scriptargs_json "$generatedscriptargs_json" \
@@ -239,6 +242,7 @@ generate_component_inventory_json() {
     --argjson build_info "$build_info" \
     --argjson oci_summary "$oci_summary" \
     --argjson source "$source" \
+    --argjson component_obj "$component_obj" \
     '{
       schema:$schema,
       app:$app,
@@ -302,7 +306,11 @@ generate_component_inventory_json() {
           category: "sbom-generator"
         },
       },
-      component:     $component
+      component:     $component,
+      oci_index: $component_obj.oci_index,
+      source_evidence: $component_obj.source_evidence,
+      targets: $component_obj.targets,
+      build_manifest: $component_obj.build_manifest
     }
     | with_entries(select(.value != null))
     | (if (.subjects? | type=="array" and length==0) then del(.subjects) else . end)
@@ -395,36 +403,33 @@ ctx_inventory_oci_summary_json() {
 
 attest_inventory_json_to_index() {
   local component="$1"
-  [[ -n "${DIST:-}" ]] || die "attest_release_json_to_indexes: DIST not set"
-  [[ -f "${DIST}/${component}/inventory.json" ]] || die "attest_release_json_to_indexes: missing ${DIST}/${component}/inventory.json"
+  [[ -n "${DIST:-}" ]] || die "attest_inventory_json_to_index: DIST not set"
 
-  local inv_abs="${DIST}/${component}/inventory.json"
-  # local pred_abs="${DIST}/${component}/inventory.json"
+  local inv_abs
+  inv_abs="${DIST}/${component}/inventory.json"
+  [[ -f "$inv_abs" ]] || die "attest_inventory_json_to_indexs: missing $inv_abs"
 
   local pred_type="${PRED_INVENTORY_DESCRIPTOR:-https://phxi.net/attestations/inventory/v1}"
   #local out_dir="${DIST}/_repo/attestations/release/inventory"
   local out_dir="${DIST}/${component}/"
   mkdir -p "$out_dir"
 
-  jq -r '.components | keys[]' "$inv_abs" | while IFS= read -r component; do
-    local subject
-    subject="$(jq -r --arg c "$component" '.components[$c].oci_index.digest_ref // empty' "$inv_abs")"
-    [[ -n "$subject" ]] || die "release attest: missing oci_index.digest_ref for component=$component"
+  local subject
+  subject="$(jq -r '.oci_index.digest_ref // empty' "$inv_abs")"
+  [[ -n "$subject" ]] || die "release attest: missing oci_index.digest_ref for component=$component"
 
-    log "==> (release) attesting inventory.json -> ${component} index ${subject}"
+  log "==> (release) attesting inventory.json -> ${component} index ${subject}"
 
-    local out=()
-    if ! mapfile -t out < <(cosign_attest_predicate "$subject" "$inv_abs" "$pred_type"); then
-      die "release attest: cosign_attest_predicate failed for component=$component subject=$subject"
-    fi
-    [[ ${#out[@]} -eq 4 ]] || die "release attest: unexpected cosign_attest_predicate output for component=$component"
+  local out=()
+  if ! mapfile -t out < <(cosign_attest_predicate "$subject" "$inv_abs" "$pred_type"); then
+    die "release attest: cosign_attest_predicate failed for component=$component subject=$subject"
+  fi
+  [[ ${#out[@]} -eq 4 ]] || die "release attest: unexpected cosign_attest_predicate output for component=$component"
 
-    local att_digest_ref="${out[0]}"
+  local att_digest_ref="${out[0]}"
+  local dsse_abs="${out_dir}/inventory.json.intoto.v1.dsse.json"
+  local manifest_abs="${out_dir}/inventory.json.oci.manifest.json"
 
-    local dsse_abs="${out_dir}/inventory.json.intoto.v1.dsse.json"
-    local manifest_abs="${out_dir}/inventory.json.oci.manifest.json"
-
-    # save dsse_abs and manifest_abs (manifest content only)
-    oci_fetch_attestation_dsse "$att_digest_ref" "$dsse_abs" "$manifest_abs" >/dev/null
-  done
+  # save dsse_abs and manifest_abs (manifest content only)
+  oci_fetch_attestation_dsse "$att_digest_ref" "$dsse_abs" "$manifest_abs" >/dev/null
 }
