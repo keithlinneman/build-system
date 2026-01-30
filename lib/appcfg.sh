@@ -84,6 +84,5 @@ config_resolve_ssm_params() {
   if [[ -z "$SIGNER_URI" ]]; then
     die "failed to resolve required SSM parameters SIGNER_URI"
   fi
-
   export ENV SIGNER_URI
 }

@@ -10,6 +10,22 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 basepath="${SCRIPT_DIR%/*}"
 source "$basepath/lib/common.sh"
 source "$basepath/lib/buildctx.sh"
+source "$basepath/lib/promote.sh"
+
+
+# testing ways to allow for independent step execution
+if [[ -z "${BUILDCTX_PATH:-}" ]]; then
+  : "${PHXI_WORKDIR:?Set PHXI_WORKDIR to the kept workdir}"
+  export BUILDCTX_PATH="${PHXI_WORKDIR}/state/buildctx.json"
+  export DIST="${PHXI_WORKDIR}/dist"
+  PHXI_SOURCE_DIR="$(jq -r '.source.local_path // empty' "$BUILDCTX_PATH")"
+  PHXI_APP_CONFIG="${PHXI_SOURCE_DIR}/build/app.json"
+
+  source "$basepath/lib/appcfg.sh"
+  appcfg_load_json "$PHXI_APP_CONFIG"
+  config_resolve_ssm_params
+  cd "$PHXI_SOURCE_DIR"
+fi
 
 log "==> (release) starting step 70-promote"
 
@@ -42,6 +58,9 @@ ctx_export_release_vars
 #  log "==> (vuln-scan) scanning binary with govulncheck for vulns (fail if found)"
 #  govulncheck -mode=binary "./${fname}" || gateVulnRelease $?
 
+# todo: this will use canary releases in the future and separate pipeline for promoting to stable
 # Set the desired release in SSM params for deploy models that use this path
-echo "==> (promote) Setting desired release in SSM: ${SSM_RELEASE_PARAM} = ${RELEASE_ID}"
-aws ssm put-parameter --name "${SSM_RELEASE_PARAM}" --type String --value "${RELEASE_ID}" --overwrite
+for component in $( ctx_list_components );do
+  echo "==> (promote) Promoting release for component=${component} release_track=${RELEASE_TRACK} = ${RELEASE_ID}"
+  promote_component_release "$component"
+done
