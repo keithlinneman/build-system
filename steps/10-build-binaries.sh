@@ -11,6 +11,9 @@ source "$basepath/lib/buildctx.sh"
 source "$basepath/lib/build.sh"
 source "$basepath/lib/evidence.sh"
 
+# Enable independent step execution
+ctx_init_if_needed
+
 log "==> (build) starting step 10-build-binaries"
 
 log "==> (build) loading build context from ${BUILDCTX_PATH}"

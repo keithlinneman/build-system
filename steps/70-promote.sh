@@ -12,19 +12,8 @@ source "$basepath/lib/common.sh"
 source "$basepath/lib/buildctx.sh"
 source "$basepath/lib/promote.sh"
 
-# testing ways to allow for independent step execution
-if [[ -z "${BUILDCTX_PATH:-}" ]]; then
-  : "${PHXI_WORKDIR:?Set PHXI_WORKDIR to the kept workdir}"
-  export BUILDCTX_PATH="${PHXI_WORKDIR}/state/buildctx.json"
-  export DIST="${PHXI_WORKDIR}/dist"
-  PHXI_SOURCE_DIR="$(jq -r '.source.local_path // "/src"' "$BUILDCTX_PATH")"
-  PHXI_APP_CONFIG="${PHXI_SOURCE_DIR}/build/app.json"
-
-  source "$basepath/lib/appcfg.sh"
-  appcfg_load_json "$PHXI_APP_CONFIG"
-  config_resolve_ssm_params
-  cd "$PHXI_SOURCE_DIR"
-fi
+# Enable independent step execution
+ctx_init_if_needed
 
 log "==> (release) starting step 70-promote"
 

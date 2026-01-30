@@ -15,6 +15,9 @@ source "$basepath/lib/signing.sh"
 source "$basepath/lib/evidence.sh"
 source "$basepath/lib/inventory.sh"
 
+# Enable independent step execution
+ctx_init_if_needed
+
 log "==> (evidence) starting step 30-generate-evidence"
 
 log "==> (evidence) loading build context from ${BUILDCTX_PATH}"

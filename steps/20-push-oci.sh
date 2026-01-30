@@ -10,6 +10,9 @@ source "$basepath/lib/common.sh"
 source "$basepath/lib/buildctx.sh"
 source "$basepath/lib/oras.sh"
 
+# Enable independent step execution
+ctx_init_if_needed
+
 log "==> (build) starting step 20-push-oci"
 
 log "==> (build) loading build context from ${BUILDCTX_PATH}"

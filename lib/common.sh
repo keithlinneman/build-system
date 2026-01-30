@@ -30,3 +30,21 @@ redact_arg() {
       ;;
   esac
 }
+
+ctx_init_if_needed() {
+  # testing ways to allow for independent step execution
+  if [[ -z "${BUILDCTX_PATH:-}" ]]; then
+    : "${PHXI_WORKDIR:?Set PHXI_WORKDIR to the kept workdir}"
+    log "==> (common) initializing build context from PHXI_WORKDIR=${PHXI_WORKDIR}"
+    export BUILDCTX_PATH="${PHXI_WORKDIR}/state/buildctx.json"
+    export DIST="${PHXI_WORKDIR}/dist"
+    PHXI_SOURCE_DIR="$(jq -r '.source.local_path // "/src"' "$BUILDCTX_PATH")"
+    PHXI_APP_CONFIG="${PHXI_SOURCE_DIR}/build/app.json"
+
+    basepath="${SCRIPT_DIR%/*}"
+    source "$basepath/lib/appcfg.sh"
+    appcfg_load_json "$PHXI_APP_CONFIG"
+    config_resolve_ssm_params
+    cd "$PHXI_SOURCE_DIR"
+  fi
+}

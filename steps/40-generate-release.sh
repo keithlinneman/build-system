@@ -16,6 +16,9 @@ source "$basepath/lib/evidence.sh"
 source "$basepath/lib/oras.sh"
 source "$basepath/lib/release.sh"
 
+# Enable independent step execution
+ctx_init_if_needed
+
 log "==> (release) starting step 40-generate-release"
 
 log "==> (release) loading build context from ${BUILDCTX_PATH}"

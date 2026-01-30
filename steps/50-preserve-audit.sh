@@ -10,6 +10,9 @@ source "$basepath/lib/common.sh"
 source "$basepath/lib/buildctx.sh"
 source "$basepath/lib/preserve.sh"
 
+# Enable independent step execution
+ctx_init_if_needed
+
 log "==> (preserve-audit) starting step 50-preserve-audit"
 
 log "==> (preserve-audit) loading build context from ${BUILDCTX_PATH}"
