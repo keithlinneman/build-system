@@ -21,13 +21,18 @@ log "==> (release) starting step 40-generate-release"
 log "==> (release) loading build context from ${BUILDCTX_PATH}"
 ctx_export_release_vars
 
-# generate_release_json
-log "==> (release) generating release.json"
-generate_release_json || die "failed to generate release json!"
+# # generate_release_json
+# log "==> (release) generating release.json"
+# generate_release_json || die "failed to generate release json!"
 
-# attest release.json to all component indexes
-log "==> (release) attesting release.json to component indexes"
-attest_release_json_to_indexes
-
-# sign the release.json for s3 release flow verification
-sign_file "${DIST}/release.json"
+# Generate per-component release manifest
+log "==> (evidence) generating per-component release manifests"
+for component in $( ctx_list_plan_components );do
+  # generate release.json manifest for component
+  generate_component_release_json "$component" || die "failed to generate release manifest for component=${component}!"
+  # attest release.json to component index
+  log "==> (release) attesting release.json to component indexes"
+  attest_release_json_to_component_index "$component" || die "failed to attest release.json to component index for component=${component}!"
+  # sign the release.json for s3 release flow verification
+  sign_release_json_for_component "$component" || die "failed to sign release.json for component=${component}!"
+done

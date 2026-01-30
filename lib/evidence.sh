@@ -512,8 +512,8 @@ build_component_obj() {
   [[ "$comp" != "_repo" ]] && pfx="${comp}/"
 
   # build block
-  local build_block
-  build_block="$(jq -n \
+  local build_manifest
+  build_manifest="$(jq -n \
     --argjson manifest   "$(file_obj_or_null "${pfx}build.json")" \
     --argjson signature  "$(file_obj_or_null "${pfx}build.json.sig")" \
     '{
@@ -669,12 +669,12 @@ build_component_obj() {
   fi
 
   jq -n \
-    --argjson build "$build_block" \
+    --argjson build_manifest "$build_manifest" \
     --argjson source_evidence "$source_evidence" \
     --argjson artifacts "$artifacts" \
     --argjson oci_index "$oci_index" \
     '{
-       build:$build,
+       build_manifest:$build_manifest,
        source_evidence:$source_evidence,
        targets:$artifacts,
        oci_index:$oci_index

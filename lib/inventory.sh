@@ -1,10 +1,18 @@
 # shellcheck shell=bash
 
-generate_inventory_json() {
-  local OUT="${DIST}/inventory.json"
+# generate_inventory_json() {
+#  for component in $( ctx_list_components ); do
+#    log "==> (inventory) generating inventory.json for component=${component}"
+#    generate_component_inventory_json "$component" "$@" || die "failed to generate inventory json for component=${component}"
+#  done
+# }
+
+generate_component_inventory_json() {
   # cache avoids re-hashing the same file over and over
   #declare -A _SHA _SZ
-  local components='{}'
+  local component="$1"
+  shift || true
+  local OUT="${DIST}/${component}/inventory.json"
 
   # get builder information
   build_info="$( ctx_get_json '.builder' )"
@@ -30,8 +38,11 @@ generate_inventory_json() {
   #generatedscriptargs_sha256="$( jq -cn --args '$ARGS.positional' -- "${ORIGINAL_ARGS[@]}" | sha256sum | awk '{print $1}' )"
 
   # Buildctx-derived maps used now
-  local evidence_by_path oci_summary
-  evidence_by_path="$(ctx_evidence_by_path_json)"
+  # local evidence_by_path oci_summary
+  # evidence_by_path="$(ctx_evidence_by_path_json)"
+  
+  # Get full component object with source_evidence, targets, oci_index, build                                                                                                                                                                                                                                        
+  component_obj="$(build_component_obj "$component")"        
   oci_summary="$(ctx_inventory_oci_summary_json)"
 
   generatedscriptargs_json="$( args_json "${redacted_args[@]}" )"
@@ -40,7 +51,7 @@ generate_inventory_json() {
   generated_by="$( jq -n \
     --arg host "$generated_host" \
     --arg tool "phxi-build" \
-    --arg step "40-generate-inventory" \
+    --arg step "30-generate-evidence" \
     --arg script "$generated_script" \
     --arg script_sha256 "$generatedscript_sha256" \
     --argjson scriptargs_json "$generatedscriptargs_json" \
@@ -60,92 +71,93 @@ generate_inventory_json() {
     }' \
   )"
 
+  # skipping repo-level scans/sboms/etc for now
   # include a pseudo "_repo" component if root-level evidence exists
   # this gets moved to root level source_manifest and source_evidence in final jq, keeps parsing simpler for now
-  if [[ -f "${DIST}/build.json" || -d "${DIST}/sbom" || -d "${DIST}/scan" || -d "${DIST}/attestations" ]]; then
-    components="$(jq --arg k "_repo" --argjson v "$(build_component_obj "_repo")" '. + {($k):$v}' <<<"$components")"
-  fi
+  # if [[ -f "${DIST}/build.json" || -d "${DIST}/sbom" || -d "${DIST}/scan" || -d "${DIST}/attestations" ]]; then
+  #   components="$(jq --arg k "_repo" --argjson v "$(build_component_obj "_repo")" '. + {($k):$v}' <<<"$components")"
+  # fi
 
-  while IFS= read -r comp; do
-    [[ -n "$comp" ]] || continue
-    components="$(jq --arg k "$comp" --argjson v "$(build_component_obj "$comp")" '. + {($k):$v}' <<<"$components")"
-  done < <( ctx_list_components )
+  # moving to component based releases for now
+  # while IFS= read -r comp; do
+  #   [[ -n "$comp" ]] || continue
+  #   components="$(jq --arg k "$comp" --argjson v "$(build_component_obj "$comp")" '. + {($k):$v}' <<<"$components")"
+  # done < <( ctx_list_components )
 
+  # 1/29/26 - not currently used commenting to save cpu time
   # build files[] inventory
-  local files='[]'
-  while IFS= read -r abs; do
-    local rel
-    rel="${abs#"${DIST}/"}"
-    # dont embed the manifests we are generating (or sigs) inside themselves
-    [[ "$rel" == "release.json" ]] && continue
-    [[ "$rel" == "release.json.sig" ]] && continue
-    [[ "$rel" == "inventory.json" ]] && continue
-    [[ "$rel" == "inventory.json.sig" ]] && continue
+  # local files='[]'
+  # while IFS= read -r abs; do
+  #   local rel
+  #   rel="${abs#"${DIST}/${component}/"}"
+  #   # dont embed the manifests we are generating (or sigs) inside themselves
+  #   [[ "$rel" == "release.json" ]] && continue
+  #   [[ "$rel" == "release.json.sig" ]] && continue
+  #   [[ "$rel" == "inventory.json" ]] && continue
+  #   [[ "$rel" == "inventory.json.sig" ]] && continue
 
-    local obj kind
-    obj="$(file_obj "$rel")"
-    kind="$(classify_kind "$rel")"
+  #   local obj kind
+  #   obj="$(file_obj "$rel")"
+  #   kind="$(classify_kind "$rel")"
 
-    # if binary annotate os/arch
-    local osarch os="" arch=""
-    osarch="$(parse_os_arch_from_bin_rel "$rel")"
-    if [[ -n "$osarch" ]]; then
-      os="$(awk '{print $1}' <<<"$osarch")"
-      arch="$(awk '{print $2}' <<<"$osarch")"
-    fi
+  #   # if binary annotate os/arch
+  #   local osarch os="" arch=""
+  #   osarch="$(parse_os_arch_from_bin_rel "$rel")"
+  #   if [[ -n "$osarch" ]]; then
+  #     os="$(awk '{print $1}' <<<"$osarch")"
+  #     arch="$(awk '{print $2}' <<<"$osarch")"
+  #   fi
 
-     # attach evidence attestation info to evidence files by matching predicate.path == rel
-    local ev_json=""
-    ev_json="$(jq -c --arg p "$rel" '.[$p] // empty' <<<"$evidence_by_path" 2>/dev/null || true)"
+  #    # attach evidence attestation info to evidence files by matching predicate.path == rel
+  #   local ev_json=""
+  #   ev_json="$(jq -c --arg p "$rel" '.[$p] // empty' <<<"$evidence_by_path" 2>/dev/null || true)"
 
-    # if binary attach OCI subject (resolved refs) from buildctx.
-    local subject_json=""
-    if [ "${kind}" == "binary" ]; then
-      local component
-      component="$( discover_component_from_rel_path "$rel" )"
+  #   # if binary attach OCI subject (resolved refs) from buildctx.
+  #   local subject_json=""
+  #   if [ "${kind}" == "binary" ]; then
+  #     local component
+  #     component="$( discover_component_from_rel_path "$rel" )"
 
-      if [[ -z "$os" || -z "$arch" ]]; then
-        die "binary missing parsed os/arch (file=${rel})"
-      fi
+  #     if [[ -z "$os" || -z "$arch" ]]; then
+  #       die "binary missing parsed os/arch (file=${rel})"
+  #     fi
 
-      local label="${os}/${arch}"
-      log "==> (inventory) attaching buildctx subject for ${component} ${label} (file=${rel})"
-      subject_json="$(ctx_get_subject_for_component_platform "$component" "$label" 2>/dev/null || true)"
-      if [[ -z "${subject_json}" ]]; then
-        die "could not find buildctx subject for component=${component} label=${label} (file=${rel})"
-      fi
-      if [[ -z "$(jq -r '.resolved.digest_ref // empty' <<<"$subject_json")" ]]; then
-        die "subject missing resolved.digest_ref component=${component} label=${label}"
-      fi
+  #     local label="${os}/${arch}"
+  #     log "==> (inventory) attaching buildctx subject for ${component} ${label} (file=${rel})"
+  #     subject_json="$(ctx_get_subject_for_component_platform "$component" "$label" 2>/dev/null || true)"
+  #     if [[ -z "${subject_json}" ]]; then
+  #       die "could not find buildctx subject for component=${component} label=${label} (file=${rel})"
+  #     fi
+  #     if [[ -z "$(jq -r '.resolved.digest_ref // empty' <<<"$subject_json")" ]]; then
+  #       die "subject missing resolved.digest_ref component=${component} label=${label}"
+  #     fi
 
-    fi
+  #   fi
 
-    obj="$(jq -n \
-      --argjson base "$obj" \
-      --arg kind "$kind" \
-      --arg os "$os" \
-      --arg arch "$arch" \
-      --argjson subject "${subject_json:-null}" \
-      --argjson evidence_referrer "${ev_json:-null}" \
-      '
-        $base
-        +
-        {kind:$kind}
-        +
-        (if $os != ""
-          then {os:$os, arch:$arch}
-          else {}
-        end)
-        +
-        (if $subject != null then {oci_subject:$subject} else {} end)
-        +
-        (if $evidence_referrer != null then {oci_referrer:$evidence_referrer} else {} end)
-       '
-    )"
-    files="$(add_to_array "$files" "$obj")"
-  done < <(find "$DIST" -type f | LC_ALL=C sort)
-
-  
+  #   obj="$(jq -n \
+  #     --argjson base "$obj" \
+  #     --arg kind "$kind" \
+  #     --arg os "$os" \
+  #     --arg arch "$arch" \
+  #     --argjson subject "${subject_json:-null}" \
+  #     --argjson evidence_referrer "${ev_json:-null}" \
+  #     '
+  #       $base
+  #       +
+  #       {kind:$kind}
+  #       +
+  #       (if $os != ""
+  #         then {os:$os, arch:$arch}
+  #         else {}
+  #       end)
+  #       +
+  #       (if $subject != null then {oci_subject:$subject} else {} end)
+  #       +
+  #       (if $evidence_referrer != null then {oci_referrer:$evidence_referrer} else {} end)
+  #      '
+  #   )"
+  #   files="$(add_to_array "$files" "$obj")"
+  # done < <(find "$DIST/${component}" -type f | LC_ALL=C sort)
 
   # oras tooling
   local oras_ver
@@ -225,12 +237,12 @@ generate_inventory_json() {
     --arg syft_ver "$syft_ver" \
     --arg syft_commit "$syft_commit" \
     --arg prefix "$prefix" \
-    --argjson files "$files" \
-    --argjson components "$components" \
+    --arg component "$component" \
     --argjson generated_by "$generated_by" \
     --argjson build_info "$build_info" \
     --argjson oci_summary "$oci_summary" \
     --argjson source "$source" \
+    --argjson component_obj "$component_obj" \
     '{
       schema:$schema,
       app:$app,
@@ -294,9 +306,11 @@ generate_inventory_json() {
           category: "sbom-generator"
         },
       },
-      source_manifest:   ($components._repo.build? // null),
-      source_evidence:($components._repo.source_evidence? // null),
-      components:     ($components | del(._repo))
+      component:     $component,
+      oci_index: $component_obj.oci_index,
+      source_evidence: $component_obj.source_evidence,
+      targets: $component_obj.targets,
+      build_manifest: $component_obj.build_manifest
     }
     | with_entries(select(.value != null))
     | (if (.subjects? | type=="array" and length==0) then del(.subjects) else . end)
@@ -387,38 +401,35 @@ ctx_inventory_oci_summary_json() {
   ' 2>/dev/null || echo '{}'
 }
 
-attest_inventory_json_to_indexes() {
-  set -euo pipefail
-  [[ -n "${DIST:-}" ]] || die "attest_release_json_to_indexes: DIST not set"
-  [[ -f "${DIST}/inventory.json" ]] || die "attest_release_json_to_indexes: missing ${DIST}/inventory.json"
+attest_inventory_json_to_index() {
+  local component="$1"
+  [[ -n "${DIST:-}" ]] || die "attest_inventory_json_to_index: DIST not set"
 
-  local inv_abs="${DIST}/inventory.json"
-  # local pred_abs="${DIST}/inventory.json"
+  local inv_abs
+  inv_abs="${DIST}/${component}/inventory.json"
+  [[ -f "$inv_abs" ]] || die "attest_inventory_json_to_indexs: missing $inv_abs"
 
   local pred_type="${PRED_INVENTORY_DESCRIPTOR:-https://phxi.net/attestations/inventory/v1}"
   #local out_dir="${DIST}/_repo/attestations/release/inventory"
-  local out_dir="${DIST}"
+  local out_dir="${DIST}/${component}/"
   mkdir -p "$out_dir"
 
-  jq -r '.components | keys[]' "$inv_abs" | while IFS= read -r component; do
-    local subject
-    subject="$(jq -r --arg c "$component" '.components[$c].oci_index.digest_ref // empty' "$inv_abs")"
-    [[ -n "$subject" ]] || die "release attest: missing oci_index.digest_ref for component=$component"
+  local subject
+  subject="$(jq -r '.oci_index.digest_ref // empty' "$inv_abs")"
+  [[ -n "$subject" ]] || die "release attest: missing oci_index.digest_ref for component=$component"
 
-    log "==> (release) attesting inventory.json -> ${component} index ${subject}"
+  log "==> (release) attesting inventory.json -> ${component} index ${subject}"
 
-    local out=()
-    if ! mapfile -t out < <(cosign_attest_predicate "$subject" "$inv_abs" "$pred_type"); then
-      die "release attest: cosign_attest_predicate failed for component=$component subject=$subject"
-    fi
-    [[ ${#out[@]} -eq 4 ]] || die "release attest: unexpected cosign_attest_predicate output for component=$component"
+  local out=()
+  if ! mapfile -t out < <(cosign_attest_predicate "$subject" "$inv_abs" "$pred_type"); then
+    die "release attest: cosign_attest_predicate failed for component=$component subject=$subject"
+  fi
+  [[ ${#out[@]} -eq 4 ]] || die "release attest: unexpected cosign_attest_predicate output for component=$component"
 
-    local att_digest_ref="${out[0]}"
+  local att_digest_ref="${out[0]}"
+  local dsse_abs="${out_dir}/inventory.json.intoto.v1.dsse.json"
+  local manifest_abs="${out_dir}/inventory.json.oci.manifest.json"
 
-    local dsse_abs="${out_dir}/inventory.json.intoto.v1.dsse.json"
-    local manifest_abs="${out_dir}/inventory.json.oci.manifest.json"
-
-    # save dsse_abs and manifest_abs (manifest content only)
-    oci_fetch_attestation_dsse "$att_digest_ref" "$dsse_abs" "$manifest_abs" >/dev/null
-  done
+  # save dsse_abs and manifest_abs (manifest content only)
+  oci_fetch_attestation_dsse "$att_digest_ref" "$dsse_abs" "$manifest_abs" >/dev/null
 }

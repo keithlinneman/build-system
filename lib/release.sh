@@ -74,22 +74,20 @@ release_components_from_inventory() {
   local inv_abs="${1:?inventory.json abs path required}"
 
   jq -c '
-    .components
-    | to_entries
-    | map({
-        component: .key,
-        index: {
-          repository: .value.oci_index.repository,
-          tag: .value.oci_index.tag,
-          tag_ref: .value.oci_index.tag_ref,
-          digest: .value.oci_index.digest,
-          digest_ref: .value.oci_index.digest_ref,
-          mediaType: .value.oci_index.mediaType,
-          artifactType: .value.oci_index.artifactType,
-          size: .value.oci_index.size,
-          pushed_at: .value.oci_index.pushed_at
-        }
-      })
+    [{
+      component: .component,
+      index: {
+        repository: .oci_index.repository,
+        tag: .oci_index.tag,
+        tag_ref: .oci_index.tag_ref,
+        digest: .oci_index.digest,
+        digest_ref: .oci_index.digest_ref,
+        mediaType: .oci_index.mediaType,
+        artifactType: .oci_index.artifactType,
+        size: .oci_index.size,
+        pushed_at: .oci_index.pushed_at
+      }
+    }]
   ' "$inv_abs"
 }
 
@@ -103,15 +101,16 @@ release_min_builder_json() {
   jq -c '.builder | {repo, branch, commit, commit_short, commit_date, dirty}' "$ctx_abs"
 }
 
-generate_release_json() {
-  set -euo pipefail
+generate_component_release_json() {
+  local component="${1:?component name required}"
+  local OUT="${DIST}/${component}/release.json"
   [[ -n "${DIST:-}" ]] || die "generate_release_json: DIST not set"
-  [[ -f "${DIST}/inventory.json" ]] || die "generate_release_json: missing ${DIST}/inventory.json"
   [[ -n "${BUILDCTX_PATH:-}" && -f "${BUILDCTX_PATH}" ]] || die "generate_release_json: BUILDCTX_PATH missing/not a file"
 
   local inv_abs inv_rel
-  inv_abs="${DIST}/inventory.json"
+  inv_abs="${DIST}/${component}/inventory.json"
   inv_rel="$( dist_relpath "${inv_abs}" )"
+  [[ -f "${inv_abs}" ]] || die "generate_release_json: missing ${inv_abs}"
 
   local schema="phxi.release.v1"
   local app version build_id release_id created_at created_epoch track
@@ -163,46 +162,82 @@ generate_release_json() {
       files: { inventory: $inventory },
       distribution: $distribution
     } | with_entries(select(.value != null))' \
-    > "${DIST}/release.json"
+    > "${OUT}"
 
-  log "==> (release) wrote ${DIST}/release.json"
+  log "==> (release) wrote ${OUT}"
 }
 
-attest_release_json_to_indexes() {
-  set -euo pipefail
-  [[ -n "${DIST:-}" ]] || die "attest_release_json_to_indexes: DIST not set"
-  [[ -f "${DIST}/inventory.json" ]] || die "attest_release_json_to_indexes: missing ${DIST}/inventory.json"
-  [[ -f "${DIST}/release.json" ]] || die "attest_release_json_to_indexes: missing ${DIST}/release.json"
+# attest_release_json_to_indexes() {
+#   set -euo pipefail
+#   [[ -n "${DIST:-}" ]] || die "attest_release_json_to_indexes: DIST not set"
+#   [[ -f "${DIST}/inventory.json" ]] || die "attest_release_json_to_indexes: missing ${DIST}/inventory.json"
+#   [[ -f "${DIST}/release.json" ]] || die "attest_release_json_to_indexes: missing ${DIST}/release.json"
 
-  local inv_abs="${DIST}/inventory.json"
-  local pred_abs="${DIST}/release.json"
+#   local inv_abs="${DIST}/inventory.json"
+#   local pred_abs="${DIST}/release.json"
+
+#   local pred_type="${PRED_RELEASE_DESCRIPTOR:-https://phxi.net/attestations/release/v1}"
+#   # local out_dir="${DIST}/_repo/attestations/release/index"
+#   local out_dir="${DIST}"
+#   mkdir -p "$out_dir"
+
+#   jq -r '.components | keys[]' "$inv_abs" | while IFS= read -r component; do
+#     local subject
+#     subject="$(jq -r --arg c "$component" '.components[$c].oci_index.digest_ref // empty' "$inv_abs")"
+#     [[ -n "$subject" ]] || die "release attest: missing oci_index.digest_ref for component=$component"
+
+#     log "==> (release) attesting release.json -> ${component} index ${subject}"
+
+#     local out=()
+#     if ! mapfile -t out < <(cosign_attest_predicate "$subject" "$pred_abs" "$pred_type"); then
+#       die "release attest: cosign_attest_predicate failed for component=$component subject=$subject"
+#     fi
+#     [[ ${#out[@]} -eq 4 ]] || die "release attest: unexpected cosign_attest_predicate output for component=$component"
+
+#     local att_digest_ref="${out[0]}"
+
+#     local dsse_abs="${out_dir}/release.json.intoto.v1.dsse.json"
+#     local manifest_abs="${out_dir}/release.json.oci.manifest.json"
+
+#     # save dsse_abs and manifest_abs (manifest content only)
+#     oci_fetch_attestation_dsse "$att_digest_ref" "$dsse_abs" "$manifest_abs" >/dev/null
+#   done
+# }
+
+attest_release_json_to_component_index() {
+  local component="$1"
+  [[ -n "${DIST:-}" ]] || die "attest_release_json_to_component_indexes: DIST not set"
+
+  local inv_abs="${DIST}/${component}/inventory.json"
+  [[ -f "$inv_abs" ]] || die "attest_release_json_to_component_indexes: missing ${inv_abs}"
+
+  local pred_abs="${DIST}/${component}/release.json"
+  [[ -f "$pred_abs" ]] || die "attest_release_json_to_component_indexes: missing ${pred_abs}"
 
   local pred_type="${PRED_RELEASE_DESCRIPTOR:-https://phxi.net/attestations/release/v1}"
   # local out_dir="${DIST}/_repo/attestations/release/index"
-  local out_dir="${DIST}"
+  local out_dir="${DIST}/${component}"
   mkdir -p "$out_dir"
 
-  jq -r '.components | keys[]' "$inv_abs" | while IFS= read -r component; do
-    local subject
-    subject="$(jq -r --arg c "$component" '.components[$c].oci_index.digest_ref // empty' "$inv_abs")"
-    [[ -n "$subject" ]] || die "release attest: missing oci_index.digest_ref for component=$component"
+  local subject
+  subject="$(jq -r '.oci_index.digest_ref // empty' "$inv_abs")"
 
-    log "==> (release) attesting release.json -> ${component} index ${subject}"
+  [[ -n "$subject" ]] || die "release attest: missing oci_index.digest_ref for component=$component"
 
-    local out=()
-    if ! mapfile -t out < <(cosign_attest_predicate "$subject" "$pred_abs" "$pred_type"); then
-      die "release attest: cosign_attest_predicate failed for component=$component subject=$subject"
-    fi
-    [[ ${#out[@]} -eq 4 ]] || die "release attest: unexpected cosign_attest_predicate output for component=$component"
+  log "==> (release) attesting release.json -> ${component} index ${subject}"
 
-    local att_digest_ref="${out[0]}"
+  local out=()
+  if ! mapfile -t out < <(cosign_attest_predicate "$subject" "$pred_abs" "$pred_type"); then
+    die "release attest: cosign_attest_predicate failed for component=$component subject=$subject"
+  fi
+  [[ ${#out[@]} -eq 4 ]] || die "release attest: unexpected cosign_attest_predicate output for component=$component"
 
-    local dsse_abs="${out_dir}/release.json.intoto.v1.dsse.json"
-    local manifest_abs="${out_dir}/release.json.oci.manifest.json"
+  local att_digest_ref="${out[0]}"
+  local dsse_abs="${out_dir}/release.json.intoto.v1.dsse.json"
+  local manifest_abs="${out_dir}/release.json.oci.manifest.json"
 
-    # save dsse_abs and manifest_abs (manifest content only)
-    oci_fetch_attestation_dsse "$att_digest_ref" "$dsse_abs" "$manifest_abs" >/dev/null
-  done
+  # save dsse_abs and manifest_abs (manifest content only)
+  oci_fetch_attestation_dsse "$att_digest_ref" "$dsse_abs" "$manifest_abs" >/dev/null
 }
 
 generate_release_policy() {
