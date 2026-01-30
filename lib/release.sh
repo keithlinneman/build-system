@@ -46,7 +46,7 @@ release_distribution_json() {
   local build_id="${3:?build_id required}"
 
   local bucket="${DEPLOYMENT_BUCKET:-}"
-  local prefix="${DEPLOYMENT_BUCKET_PREFIX:-apps/${app}/releases/${version}/${build_id}/}"
+  local prefix="${DEPLOYMENT_BUCKET_PREFIX:-apps/${app}/releases/${release_id}/}"
 
   prefix="${prefix#/}"
   [[ "$prefix" == */ ]] || prefix="${prefix}/"
@@ -70,25 +70,31 @@ release_distribution_json() {
     } | with_entries(select(.value != null))'
 }
 
-release_components_from_inventory() {
+release_component_from_inventory() {
   local inv_abs="${1:?inventory.json abs path required}"
 
-  jq -c '
-    [{
-      component: .component,
-      index: {
-        repository: .oci_index.repository,
-        tag: .oci_index.tag,
-        tag_ref: .oci_index.tag_ref,
-        digest: .oci_index.digest,
-        digest_ref: .oci_index.digest_ref,
-        mediaType: .oci_index.mediaType,
-        artifactType: .oci_index.artifactType,
-        size: .oci_index.size,
-        pushed_at: .oci_index.pushed_at
+  jq '{
+    oci: {
+      repository: .oci_index.repository,
+      tag: .oci_index.tag,
+      tag_ref: .oci_index.tag_ref,
+      digest: .oci_index.digest,
+      digest_ref: .oci_index.digest_ref,
+      mediaType: .oci_index.mediaType,
+      artifactType: .oci_index.artifactType,
+      size: .oci_index.size,
+      pushed_at: .oci_index.pushed_at
+    },
+    artifacts: [.targets[] | {
+      os: .os,
+      arch: .arch,
+      binary: {
+        path: .subject.path,
+        sha256: .subject.hashes.sha256,
+        size: .subject.size
       }
     }]
-  ' "$inv_abs"
+  }' "$inv_abs"
 }
 
 release_min_source_json() {
@@ -123,11 +129,11 @@ generate_component_release_json() {
   created_at="$( date --utc +%Y-%m-%dT%H:%M:%SZ )"
   created_epoch="$( date +%s )"
 
-  local inv_obj dist_obj comps source builder release_policy
+  local inv_obj dist_obj release_data source builder release_policy
   inv_obj="$( file_obj "$inv_rel")"
   # ctx_obj="$(release_file_obj "$BUILDCTX_PATH")"
   dist_obj="$( release_distribution_json "$app" "$version" "$build_id" )"
-  comps="$( release_components_from_inventory "$inv_abs" )"
+  release_data="$( release_component_from_inventory "$inv_abs" )"
   source="$( release_min_source_json "$BUILDCTX_PATH" )"
   builder="$( release_min_builder_json "$BUILDCTX_PATH" )"
   release_policy="$( generate_release_policy )"
@@ -142,7 +148,8 @@ generate_component_release_json() {
     --arg track "$track" \
     --argjson inventory "$inv_obj" \
     --argjson distribution "$dist_obj" \
-    --argjson components "$comps" \
+    --argjson component "$component" \
+    --argjson release_data "$release_data" \
     --argjson source "$source" \
     --argjson builder "$builder" \
     --argjson release_policy "$release_policy" \
@@ -161,7 +168,7 @@ generate_component_release_json() {
       policy: $release_policy,
       files: { inventory: $inventory },
       distribution: $distribution
-    } | with_entries(select(.value != null))' \
+    } + $release_data | with_entries(select(.value != null))' \
     > "${OUT}"
 
   log "==> (release) wrote ${OUT}"

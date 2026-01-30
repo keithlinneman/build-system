@@ -39,7 +39,6 @@ sign_release_json_for_component() {
   sign_file "${DIST}/${component}/release.json"
 }
   
-
 attest_file_dsse_v1() {
   set -euo pipefail
 
