@@ -28,8 +28,9 @@ gate_dirty_source_repo() {
   if [[ "$src_dirty" != "false" ]]; then
     # allow explicit override for emergencies
     if [[ "${ALLOW_DIRTY_SOURCE_STABLE:-}" == "1" ]]; then
-      warning_highlight="$( printf "[-]\n[-] ###############################\n" )"
-      log "${warning_highlight}[-] WARNING: continuing build on ${track} track with dirty source due to ALLOW_DIRTY_SOURCE_STABLE=1 override${warning_highlight}"
+      log "[-] ###############################"
+      log "[-] WARNING: continuing build on ${track} track with dirty source due to ALLOW_DIRTY_SOURCE_STABLE=1 override"
+      log "[-] ###############################"
       sleep 5
       return 0
     fi

@@ -274,7 +274,7 @@ oci_push_component_index() {
 
   # descriptor (size + mediaType)
   local desc size mt now
-  desc="$(oras manifest fetch --descriptor "${index_digest_ref}" --output json)"
+  desc="$(oras manifest fetch --descriptor "${index_digest_ref}" )"
   size="$(echo "$desc" | jq -r '.size')"
   mt="$(echo "$desc" | jq -r '.mediaType')"
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

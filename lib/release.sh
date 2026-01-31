@@ -89,7 +89,7 @@ release_component_from_inventory() {
       os: .os,
       arch: .arch,
       binary: {
-        path: .subject.path,
+        path: (.subject.path | split("/") | .[1:] | join("/")),
         sha256: .subject.hashes.sha256,
         size: .subject.size
       }
@@ -164,7 +164,7 @@ generate_component_release_json() {
       epoch: $created_epoch,
       source: $source,
       builder: $builder,
-      components: $components,
+      component: $component,
       policy: $release_policy,
       files: { inventory: $inventory },
       distribution: $distribution
