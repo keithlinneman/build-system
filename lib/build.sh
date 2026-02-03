@@ -10,12 +10,28 @@ build_binary() {
 }
 
 initialize_build_env() {
+  local whoami
+  whoami="$( aws sts get-caller-identity --query Arn --output text 2>/dev/null || echo "unknown" )"
+
   LDFLAGS=(
     "-X=${VERPKG}.Version=${RELEASE_VERSION}"
     "-X=${VERPKG}.BuildDate=${BUILD_DATE}"
     "-X=${VERPKG}.BuildId=${BUILD_ID}"
     "-X=${VERPKG}.Commit=${COMMIT_SHORT}"
     "-X=${VERPKG}.CommitDate=${COMMIT_DATE}"
+
+    "-X=${VERPKG}.Repository=${REPO_URL}"
+    "-X=${VERPKG}.BuildActor=${GITHUB_ACTOR:-unknown}"
+    "-X=${VERPKG}.BuildSystem=github-actions"
+    "-X=${VERPKG}.BuildRunID=${GITHUB_RUN_ID}"
+    "-X=${VERPKG}.BuildRunURL=https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+    "-X=${VERPKG}.BuildRunURL=${GITHUB_RUN_ID:+https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}}"
+    "-X=${VERPKG}.BuilderIdentity=${whoami}"
+    "-X=${VERPKG}.ReleaseId=${RELEASE_VERSION}"
+    "-X=${VERPKG}.EvidenceBucket=${EVIDENCE_BUCKET}"
+    "-X=${VERPKG}.EvidencePrefix=apps/${APP_NAME}/server/releases/${RELEASE_VERSION}"
+    "-X=${VERPKG}.CosignKeyRef=${SIGNER_URI}"
+
   )
 
   # ensure we have all required modules downloaded

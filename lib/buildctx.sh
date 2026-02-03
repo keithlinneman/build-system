@@ -72,7 +72,7 @@ ctx_get_index_subject_for_component() {
 
 # Export the vars step scripts commonly need
 ctx_export_release_vars() {
-  export APP RELEASE_VERSION BUILD_ID BUILD_ID_REGISTRY_SAFE RELEASE_ID RELEASE_TRACK BUILD_DATE BUILD_EPOCH COMMIT_SHORT COMMIT COMMIT_DATE REPO_DIRTY
+  export APP RELEASE_VERSION BUILD_ID BUILD_ID_REGISTRY_SAFE RELEASE_ID RELEASE_TRACK BUILD_DATE BUILD_EPOCH COMMIT_SHORT COMMIT COMMIT_DATE REPO_DIRTY REPO_URL
   APP="$(ctx_get '.app')"
   RELEASE_VERSION="$(ctx_get '.release.version')"
   BUILD_ID="$(ctx_get '.release.build_id')"
@@ -85,6 +85,7 @@ ctx_export_release_vars() {
   COMMIT="$(ctx_get '.source.commit')"
   COMMIT_DATE="$(ctx_get '.source.commit_date')"
   REPO_DIRTY="$(ctx_get '.source.dirty')"
+  REPO_URL="$(ctx_get '.source.repo')"
 }
 
 ctx_build_init() {

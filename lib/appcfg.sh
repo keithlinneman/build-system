@@ -24,8 +24,9 @@ appcfg_load_json() {
   BINARY_ARTIFACT_TYPE="$(jq -r '.oci.artifact_types.binary' "$cfg_path")"
   INDEX_ARTIFACT_TYPE="$(jq -r '.oci.artifact_types.index' "$cfg_path")"
 
-  export DEPLOYMENT_BUCKET SSM_RELEASE_PARAM
+  export DEPLOYMENT_BUCKET EVIDENCE_BUCKET SSM_RELEASE_PARAM
   DEPLOYMENT_BUCKET="$(jq -r '.deploy.s3_bucket' "$cfg_path")"
+  EVIDENCE_BUCKET="$(jq -r '.evidence.s3_bucket' "$cfg_path")"
   SSM_RELEASE_PARAM="$(jq -r '.deploy.ssm_release_param' "$cfg_path")"
 
   #export AWS_BASE_PROFILE AWS_S3_PROFILE AWS_SSM_PROFILE AWS_KMS_SIGNER_PROFILE
@@ -59,7 +60,7 @@ appcfg_component_repo() {
 }
 
 config_resolve_ssm_params() {
-  # Resolve SSM parameters for deployment bucket and release param if they are SSM paths
+  # Resolve SSM parameters for deployment bucket, evidence bucket, and release param if they are SSM paths
   if [[ "$DEPLOYMENT_BUCKET" == ssm:* || "$DEPLOYMENT_BUCKET" == arn:*:ssm:* ]]; then
     local param_name="${DEPLOYMENT_BUCKET#ssm:}"
     DEPLOYMENT_BUCKET="$(aws ssm get-parameter --name "$param_name" --query Parameter.Value --output text)"
@@ -67,6 +68,10 @@ config_resolve_ssm_params() {
   if [[ "$SSM_RELEASE_PARAM" == ssm:* || "$SSM_RELEASE_PARAM" == arn:*:ssm:* ]]; then
     local param_name="${SSM_RELEASE_PARAM#ssm:}"
     SSM_RELEASE_PARAM="$(aws ssm get-parameter --name "$param_name" --query Parameter.Value --output text)"
+  fi
+  if [[ "$EVIDENCE_BUCKET" == ssm:* || "$EVIDENCE_BUCKET" == arn:*:ssm:* ]]; then
+    local param_name="${EVIDENCE_BUCKET#ssm:}"
+    EVIDENCE_BUCKET="$(aws ssm get-parameter --name "$param_name" --query Parameter.Value --output text)"
   fi
 
   ## Get environment name from SSM
@@ -84,5 +89,5 @@ config_resolve_ssm_params() {
   if [[ -z "$SIGNER_URI" ]]; then
     die "failed to resolve required SSM parameters SIGNER_URI"
   fi
-  export ENV SIGNER_URI
+  export ENV SIGNER_URI DEPLOYMENT_BUCKET SSM_RELEASE_PARAM EVIDENCE_BUCKET
 }
