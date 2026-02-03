@@ -3,10 +3,12 @@
 build_binary() {
   local component="$1" goos="$2" goarch="$3" outfile="$4"
   mkdir -p "$( dirname "${outfile}" )"
+  set -x
   CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
     go build -trimpath -mod=readonly -buildvcs=true \
       -ldflags "${LDFLAGS[*]}" \
       -o "$outfile" "./cmd/${component}"
+  set +x
 }
 
 initialize_build_env() {
