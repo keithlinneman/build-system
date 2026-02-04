@@ -31,7 +31,7 @@ initialize_build_env() {
     "-X=${VERPKG}.BuilderIdentity=${whoami}"
     "-X=${VERPKG}.ReleaseId=${RELEASE_VERSION}"
     "-X=${VERPKG}.EvidenceBucket=${EVIDENCE_BUCKET}"
-    "-X=${VERPKG}.EvidencePrefix=apps/${APP_NAME}/server/releases/${RELEASE_VERSION}"
+    "-X=${VERPKG}.EvidencePrefix=apps/${APP}/server/releases/${RELEASE_VERSION}"
     "-X=${VERPKG}.CosignKeyRef=${SIGNER_URI}"
 
   )
