@@ -80,10 +80,8 @@ gate_tag_on_main_head() {
   local commit
   commit="$( ctx_get '.source.commit' )"
   local src_dir="${PHXI_SOURCE_DIR:-$PWD}"
-  local main_head=""
-  main_head="$(git -C "$src_dir" rev-parse "origin/main^{commit}" 2>/dev/null)" \
-    || main_head="$(git -C "$src_dir" rev-parse "origin/master^{commit}" 2>/dev/null)" \
-    || true
+  local main_head
+  main_head="$( git -C "$src_dir" rev-parse "origin/main^{commit}" 2>/dev/null )"
 
   if [[ -z "$main_head" ]]; then
     die "Refusing to build - could not resolve origin/main (or origin/master) HEAD to verify tagged release is on tip of main"
