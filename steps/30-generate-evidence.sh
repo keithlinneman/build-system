@@ -53,7 +53,7 @@ for component in $( ctx_list_plan_components );do
   evidence_generate_component_source_sboms "${component}"
   # old local offline attach method
   # attest and attach per-component sboms to component index
-  evidence_attest_component_index_sboms "${component}"
+  evidence_oci_attest_component_index_sboms "${component}"
 
   # Generate (and attest) per-component license report from sboms
   evidence_generate_component_source_license_report "$component"
@@ -63,7 +63,7 @@ for component in $( ctx_list_plan_components );do
   # old local offline attach method
   ## attest and attach per-component scan reports to component index
   #evidence_attach_component_scan_reports "${component}" "${index_subject_ref}"
-  evidence_attest_component_index_scans "${component}"
+  evidence_oci_attest_component_index_scans "${component}"
 
   #for pkey in $( ctx_list_realized_platform_keys "$component" );do
   for platform in $( ctx_list_plan_platforms );do
@@ -80,11 +80,12 @@ for component in $( ctx_list_plan_components );do
     fi
 
     log "==> (evidence) generating artifact evidence for component=${component} platform=${platform} (subject_ref=${subject_ref})"
+
     # Generate per-artifact sboms
     evidence_generate_component_artifact_sboms "${component}" "${pkey}"
     # old local offline attach method
     # evidence_attach_artifact_sbom "${component}" "${pkey}" "${subject_ref}"
-    evidence_attest_component_artifact_sboms "${component}" "${pkey}"
+    evidence_oci_attest_component_artifact_sboms "${component}" "${pkey}"
 
     # Generate per-artifact licenses and attestations
     evidence_generate_component_artifact_license_report "$component" "$pkey"
@@ -93,7 +94,10 @@ for component in $( ctx_list_plan_components );do
     evidence_generate_component_artifact_scan_reports "${component}" "${pkey}"
     # old local offline attach method
     # evidence_attach_artifact_scan_reports "${component}" "${pkey}" "${subject_ref}"
-    evidence_attest_component_artifact_scan_reports "${component}" "${pkey}"
+    evidence_oci_attest_component_artifact_scan_reports "${component}" "${pkey}"
+
+    log "==> (evidence) local attestation for component=${component} platform=${platform}"
+    evidence_local_attest_component_platform "${component}" "${pkey}"
   done
 
   log "==> (evidence) resolving refs (tag_ref/digest_ref)"

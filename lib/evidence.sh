@@ -1210,7 +1210,7 @@ evidence_list_component_artifact_scans() {
       '
 }
 
-evidence_attest_component_index_scans() {
+evidence_oci_attest_component_index_scans() {
   # args: component
   local component="$1"
   local items
@@ -1233,7 +1233,7 @@ evidence_attest_component_index_scans() {
   done
 }
 
-evidence_attest_component_artifact_scan_reports() {
+evidence_oci_attest_component_artifact_scan_reports() {
   # args: component platform_key
   local component="$1" pkey="$2"
   local items; items="$(evidence_list_component_artifact_scans "$component" "$pkey")"
@@ -1309,7 +1309,7 @@ evidence_list_component_artifact_sboms() {
       '
 }
 
-evidence_attest_component_index_sboms() {
+evidence_oci_attest_component_index_sboms() {
   local component="$1"
   local items; items="$(evidence_list_component_source_sboms "$component")"
 
@@ -1328,7 +1328,7 @@ evidence_attest_component_index_sboms() {
   done
 }
 
-evidence_attest_component_artifact_sboms() {
+evidence_oci_attest_component_artifact_sboms() {
   # args: component platform_key
   local component="$1" pkey="$2"
   local items; items="$(evidence_list_component_artifact_sboms "$component" "$pkey")"
@@ -1753,4 +1753,108 @@ evidence_generate_component_artifact_license_report() {
     "$component" "$pkey" "license" "$out_rel" \
     "${PRED_LICENSE_REPORT:?PRED_LICENSE_REPORT required}" \
     "application/json"
+}
+
+evidence_local_attest_component_platform() {
+  local component="$1" pkey="$2"
+
+  local bin_path_in bin_path os arch platform_suffix
+  bin_path_in="$(ctx_get_artifact_field "$component" "$pkey" '.local.path')"
+  bin_path="$(dist_abspath "$bin_path_in")"
+  os="$(ctx_get_artifact_field "$component" "$pkey" '.platform.os')"
+  arch="$(ctx_get_artifact_field "$component" "$pkey" '.platform.arch')"
+  platform_suffix="${os}-${arch}"
+
+  [[ -f "$bin_path" ]] || die "local attest: binary not found: $bin_path"
+
+  # artifact-scope sboms
+  local items
+  items="$(evidence_list_component_artifact_sboms "$component" "$pkey")"
+  while IFS= read -r it; do
+    [[ -n "$it" ]] || continue
+    local rel pred_abs
+    rel="$(jq -r '.path' <<<"$it")"
+    pred_abs="$(dist_abspath "$rel")"
+
+    log "==> (local-attest) artifact sbom: ${rel} -> binary ${platform_suffix}"
+    attest_file_dsse_v1 "$bin_path" "$pred_abs" \
+      "https://cosign.sigstore.dev/attestation/sbom/v1"
+  done < <(jq -c '.[]?' <<<"$items")
+
+  # artifact-scope scans
+  items="$(evidence_list_component_artifact_scans "$component" "$pkey")"
+  while IFS= read -r it; do
+    [[ -n "$it" ]] || continue
+    local rel scanner kind pred_type pred_abs
+    rel="$(jq -r '.path' <<<"$it")"
+    scanner="$(jq -r '.scanner' <<<"$it")"
+    kind="$(jq -r '.kind' <<<"$it")"
+    pred_type="$(evidence_predicate_type_for_scan "$scanner" "$kind")"
+    pred_abs="$(dist_abspath "$rel")"
+
+    log "==> (local-attest) artifact scan: ${rel} -> binary ${platform_suffix}"
+    attest_file_dsse_v1 "$bin_path" "$pred_abs" "$pred_type"
+  done < <(jq -c '.[]?' <<<"$items")
+
+  # artifact-scope license
+  local lic_rel lic_abs
+  lic_rel="$(license_report_out_rel_artifact "$component" "$os" "$arch")"
+  lic_abs="$(dist_abspath "$lic_rel")"
+  if [[ -f "$lic_abs" ]]; then
+    log "==> (local-attest) artifact license: ${lic_rel} -> binary ${platform_suffix}"
+    attest_file_dsse_v1 "$bin_path" "$lic_abs" \
+      "${PRED_LICENSE_REPORT:?PRED_LICENSE_REPORT required}"
+  fi
+
+  # source-scope SBOMs (explicit bundle_out with platform to avoid collision)
+  items="$(evidence_list_component_source_sboms "$component")"
+  while IFS= read -r it; do
+    [[ -n "$it" ]] || continue
+    local rel pred_abs basename bundle_out
+    rel="$(jq -r '.path' <<<"$it")"
+    pred_abs="$(dist_abspath "$rel")"
+    basename="$(basename "$rel")"
+    bundle_out="${DIST}/${component}/attestations/sbom/source/${basename}.${platform_suffix}.intoto.v1.sigstore.json"
+    mkdir -p "$(dirname "$bundle_out")"
+
+    log "==> (local-attest) source sbom: ${rel} -> binary ${platform_suffix}"
+    attest_file_dsse_v1 "$bin_path" "$pred_abs" \
+      "https://cosign.sigstore.dev/attestation/sbom/v1" \
+      "" "$bundle_out"
+  done < <(jq -c '.[]?' <<<"$items")
+
+  # source-scope scans
+  items="$(evidence_list_component_source_scans "$component")"
+  while IFS= read -r it; do
+    [[ -n "$it" ]] || continue
+    local rel scanner kind pred_type pred_abs basename bundle_out
+    rel="$(jq -r '.path' <<<"$it")"
+    scanner="$(jq -r '.scanner' <<<"$it")"
+    kind="$(jq -r '.kind' <<<"$it")"
+    pred_type="$(evidence_predicate_type_for_scan "$scanner" "$kind")"
+    pred_abs="$(dist_abspath "$rel")"
+    basename="$(basename "$rel")"
+    bundle_out="${DIST}/${component}/attestations/scan/source/${basename}.${platform_suffix}.intoto.v1.sigstore.json"
+    mkdir -p "$(dirname "$bundle_out")"
+
+    log "==> (local-attest) source scan: ${rel} -> binary ${platform_suffix}"
+    attest_file_dsse_v1 "$bin_path" "$pred_abs" "$pred_type" \
+      "" "$bundle_out"
+  done < <(jq -c '.[]?' <<<"$items")
+
+  # source-scope license
+  local src_lic_rel src_lic_abs
+  src_lic_rel="$(license_report_out_rel_source "$component")"
+  src_lic_abs="$(dist_abspath "$src_lic_rel")"
+  if [[ -f "$src_lic_abs" ]]; then
+    local basename bundle_out
+    basename="$(basename "$src_lic_rel")"
+    bundle_out="${DIST}/${component}/attestations/license/source/${basename}.${platform_suffix}.intoto.v1.sigstore.json"
+    mkdir -p "$(dirname "$bundle_out")"
+
+    log "==> (local-attest) source license: ${src_lic_rel} -> binary ${platform_suffix}"
+    attest_file_dsse_v1 "$bin_path" "$src_lic_abs" \
+      "${PRED_LICENSE_REPORT:?PRED_LICENSE_REPORT required}" \
+      "" "$bundle_out"
+  fi
 }
