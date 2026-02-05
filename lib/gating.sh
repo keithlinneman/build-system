@@ -84,7 +84,7 @@ gate_tag_on_main_head() {
   main_head="$( git -C "$src_dir" rev-parse "origin/main^{commit}" 2>/dev/null )"
 
   if [[ -z "$main_head" ]]; then
-    die "Refusing to build - could not resolve origin/main (or origin/master) HEAD to verify tagged release is on tip of main"
+    die "Refusing to build - could not resolve origin/main HEAD to verify tagged release is on tip of main"
   fi
 
   if [[ "$commit" != "$main_head" ]]; then
