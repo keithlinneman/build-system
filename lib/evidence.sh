@@ -1151,9 +1151,7 @@ evidence_list_component_source_scans() {
   local dir="${DIST}/${component}/scan/source"
   [[ -d "$dir" ]] || { jq -nc '[]'; return 0; }
 
-  # only attesting sarif reports for now, keeping json on disk for extra audit data
-  # find "$dir" -maxdepth 1 -type f \( -name '*.json' -o -name '*.sarif.json' \) \
-  find "$dir" -maxdepth 1 -type f -name '*.sarif.json' \
+  find "$dir" -maxdepth 1 -type f -name '*.json' \
     | LC_ALL=C sort \
     | awk -v dist="$DIST/" '
         { sub("^" dist, "", $0); print $0 }

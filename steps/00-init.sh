@@ -24,10 +24,21 @@ ctx_build_init "$buildscript" "$@" || exit 1
 log "==> (init) loading build context from ${BUILDCTX_PATH}"
 ctx_export_release_vars
 
-# Gate: verify source/build repo integrity if track is stable
-log "==> (init) gating source/build repos for release_track=${RELEASE_TRACK}"
+# Gate: build-system repo must be clean for stable track (research if attacker could just modify build-system and add a commit, guess they could just edit this script in that case too..)
+log "==> (init) gating build-system repo for release_track=${RELEASE_TRACK}"
 gate_dirty_source_repo "${RELEASE_TRACK}"
+
+# Gate: app source repo must be clean for stable track
+log "==> (init) gating app source repo for release_track=${RELEASE_TRACK}"
 gate_dirty_build_repo "${RELEASE_TRACK}"
+
+# Gate: stable track requires tagged commit
+log "==> (init) gating stable track tag requirement"
+gate_stable_requires_tag "${RELEASE_TRACK}"
+
+# Gate: tagged releases must be built from HEAD on main
+log "==> (init) gating tagged release on main HEAD"
+gate_tag_on_main_head
 
 if [ "${#BUILD_COMPONENTS[@]}" -eq 0 ]; then
   die "no build components defined in build context!"
