@@ -89,7 +89,7 @@ release_component_from_inventory() {
       os: .os,
       arch: .arch,
       binary: {
-        path: (.subject.path | split("/") | .[1:] | join("/")),
+        path: .subject.path,
         sha256: .subject.hashes.sha256,
         size: .subject.size
       }
