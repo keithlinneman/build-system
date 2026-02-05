@@ -130,7 +130,10 @@ generate_component_release_json() {
   created_epoch="$( date +%s )"
 
   local inv_obj dist_obj release_data source builder release_policy
-  inv_obj="$( file_obj "$inv_rel")"
+  # stripping component from path since we push to s3 under per-component paths
+  # inv_obj="$( file_obj "$inv_rel")"
+  inv_obj="$( file_obj "$inv_rel" | jq --arg pfx "${component}/" '.path |= ltrimstr($pfx)' )"
+
   # ctx_obj="$(release_file_obj "$BUILDCTX_PATH")"
   dist_obj="$( release_distribution_json "$app" "$version" "$build_id" )"
   release_data="$( release_component_from_inventory "$inv_abs" )"

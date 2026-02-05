@@ -25,14 +25,13 @@ initialize_build_env() {
     "-X=${VERPKG}.Repository=${REPO_URL}"
     "-X=${VERPKG}.BuildActor=${GITHUB_ACTOR:-unknown}"
     "-X=${VERPKG}.BuildSystem=github-actions"
-    "-X=${VERPKG}.BuildRunID=${GITHUB_RUN_ID}"
+    "-X=${VERPKG}.BuildRunID=${GITHUB_RUN_ID:-unknown}"
     "-X=${VERPKG}.BuildRunURL=${GITHUB_RUN_ID:+https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}}"
     "-X=${VERPKG}.BuilderIdentity=${whoami}"
     "-X=${VERPKG}.ReleaseId=${RELEASE_ID}"
     "-X=${VERPKG}.EvidenceBucket=${EVIDENCE_BUCKET}"
     "-X=${VERPKG}.EvidencePrefix=apps/${APP}/server/releases"
     "-X=${VERPKG}.CosignKeyRef=${SIGNER_URI}"
-
   )
 
   # ensure we have all required modules downloaded

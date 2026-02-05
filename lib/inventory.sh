@@ -42,8 +42,22 @@ generate_component_inventory_json() {
   # evidence_by_path="$(ctx_evidence_by_path_json)"
   
   # Get full component object with source_evidence, targets, oci_index, build                                                                                                                                                                                                                                        
-  component_obj="$(build_component_obj "$component")"        
-  oci_summary="$(ctx_inventory_oci_summary_json)"
+  component_obj="$( build_component_obj "$component" )"        
+  oci_summary="$( ctx_inventory_oci_summary_json )"
+
+  # inventory.json is per-component and we push to s3 under per-component paths, stripping here from inventory.json
+  # i.e. we generate DIST/server/sbom/ but it goes to s3 as server/release/id/sbom/
+  component_obj="$( jq --arg pfx "${component}/" '
+    walk(if type == "object" and has("path") and (.path | type == "string") and (.path | startswith($pfx))
+         then .path |= ltrimstr($pfx)
+         else . end)
+  ' <<<"$component_obj")"
+  
+  oci_summary="$(jq --arg pfx "${component}/" '
+    walk(if type == "object" and has("path") and (.path | type == "string") and (.path | startswith($pfx))
+         then .path |= ltrimstr($pfx)
+         else . end)
+  ' <<<"$oci_summary")"
 
   generatedscriptargs_json="$( args_json "${redacted_args[@]}" )"
   generatedscriptargs_sha256="$( printf '%s' "$ORIGINAL_ARGS_JSON" | sha256sum | awk '{print $1}' )"
