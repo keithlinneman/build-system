@@ -286,14 +286,14 @@ build_sbom_block() {
 
   local items='[]'
   while IFS= read -r abs; do
-    local rel basefile rest producer format att_rel report_obj att_obj item
+    local rel basefile rest producer format att_rel report_obj item
     rel="${abs#"${DIST}/"}"
     basefile="$(basename "$rel")"
 
-    # Match: <name>.<producer>.(cdx|spdx).json
+    # match: <name>.<producer>.(cdx|spdx).json
     [[ "$basefile" == "${name}."*".json" ]] || continue
-    rest="${basefile#"${name}".}"       # e.g. "syft.spdx.json" or "gomod.cdx.json"
-    producer="${rest%%.*}"              # "syft" / "gomod"
+    rest="${basefile#"${name}".}"
+    producer="${rest%%.*}"
 
     if [[ "$basefile" == *.spdx.json ]]; then
       format="spdx-json"
@@ -308,16 +308,14 @@ build_sbom_block() {
     report_obj="$(file_obj_or_null "$rel")"
     [[ "$report_obj" == "null" ]] && continue
 
-    att_rel="${att_dir}/${basefile}.intoto.v1.dsse.json"
-    [[ -f "${DIST}/${att_rel}" ]] || att_rel="${att_dir}/${basefile}.intoto.v1.sigstore.json"
+    local atts
+    atts="$(collect_attestations_for_evidence "$att_dir" "$basefile")"
 
-    att_obj="$(file_obj_or_null "$att_rel")"
-
-    item="$(jq -n \
+    item="$( jq -n \
       --arg producer "$producer" \
       --arg format "$format" \
       --argjson report "$report_obj" \
-      --argjson att "$att_obj" \
+      --argjson atts "$atts" \
       --argjson sbom_features "$sbom_features" \
       '{
          producer: $producer,
@@ -325,8 +323,9 @@ build_sbom_block() {
          features: $sbom_features,
          report: $report
        }
-       | if ($att != null) then . + {attestations: [$att]} else . end
-      ')"
+       | if ($atts | length) > 0 then . + {attestations: $atts} else . end
+      '
+    )"
 
     items="$(add_to_array "$items" "$item")"
   done < <(find "${DIST}/${sbom_dir}" -maxdepth 1 -type f -name "${name}*.json" | LC_ALL=C sort)
@@ -359,21 +358,19 @@ build_license_block() {
   report_obj="$(file_obj_or_null "$report_rel")"
   [[ "$report_obj" != "null" ]] || { jq -n 'null'; return 0; }
 
-  local att_rel="${att_dir}/${file}.intoto.v1.dsse.json"
-  [[ -f "${DIST}/${att_rel}" ]] || att_rel="${att_dir}/${file}.intoto.v1.sigstore.json"
-  local att_obj
-  att_obj="$(file_obj_or_null "$att_rel")"
+  local atts
+  atts="$(collect_attestations_for_evidence "$att_dir" "$file")"
 
   jq -n \
     --arg format "summary-json" \
     --argjson report "$report_obj" \
-    --argjson att "$att_obj" \
+    --argjson atts "$atts" \
     '{
-       format: $format,
-       report: $report
-     }
-     | if ($att != null) then . + {attestations: [$att]} else . end
-     | { license: [.] }
+        format: $format,
+        report: $report
+      }
+      | if ($atts | length) > 0 then . + {attestations: $atts} else . end
+      | { license: [.] }
     '
 }
 
@@ -404,8 +401,8 @@ build_scans_for_dir() {
       *)               kind="other"; format="json" ;;
     esac
 
-    local att_rel="${att_dir}/${base}.intoto.v1.dsse.json"
-    [[ -f "${DIST}/${att_rel}" ]] || att_rel="${att_dir}/${base}.intoto.v1.sigstore.json"
+    local atts
+    atts="$(collect_attestations_for_evidence "$att_dir" "$base")"
 
     local item
     item="$( jq -n \
@@ -413,16 +410,17 @@ build_scans_for_dir() {
       --arg kind "$kind" \
       --arg format "$format" \
       --argjson report "$(file_obj "$rel")" \
-      --argjson att "$(file_obj_or_null "$att_rel")" \
+      --argjson atts "$atts" \
       '{
-         scanner:$scanner,
-         kind:$kind,
-         format:$format,
-         report:$report
-       }
-       | if ($att != null) then . + {attestations: [$att]} else . end
+          scanner:$scanner,
+          kind:$kind,
+          format:$format,
+          report:$report
+        }
+        | if ($atts | length) > 0 then . + {attestations: $atts} else . end
       '
     )"
+
     items="$(add_to_array "$items" "$item")"
   done < <(find "${DIST}/${scan_dir}" -maxdepth 1 -type f \( -name '*.json' -o -name '*.sarif.json' \) | LC_ALL=C sort)
 
@@ -472,14 +470,20 @@ build_artifact_scans() {
     local att_rel="${att_dir}/${base}.intoto.v1.dsse.json"
     [[ -f "${DIST}/${att_rel}" ]] || att_rel="${att_dir}/${base}.intoto.v1.sigstore.json"
 
+    local atts
+    atts="$(collect_attestations_for_evidence "$att_dir" "$base")"
+
     local item
-    item="$(jq -n \
+    item="$( jq -n \
       --arg scanner "$scanner" \
       --arg kind "$kind" \
       --arg format "$format" \
       --argjson report "$(file_obj "$rel")" \
-      --argjson att "$(file_obj_or_null "$att_rel")" \
-      '{scanner:$scanner, kind:$kind, format:$format, report:$report, attestations:([$att] | map(select(.!=null)))}')"
+      --argjson atts "$atts" \
+      '{scanner:$scanner, kind:$kind, format:$format, report:$report}
+       | if ($atts | length) > 0 then . + {attestations: $atts} else . end
+      '
+    )"
 
     items="$(add_to_array "$items" "$item")"
   done < <(find "${DIST}/${scan_dir}" -maxdepth 1 -type f \( -name '*.json' -o -name '*.sarif.json' \) | LC_ALL=C sort)
@@ -1857,4 +1861,54 @@ evidence_local_attest_component_platform() {
       "${PRED_LICENSE_REPORT:?PRED_LICENSE_REPORT required}" \
       "" "$bundle_out"
   fi
+}
+
+collect_attestations_for_evidence() {
+  local att_dir="$1" basefile="$2"
+  local atts='[]'
+
+  # oci-fetched envelope
+  local oci_rel="${att_dir}/${basefile}.intoto.v1.dsse.json"
+  if [[ -f "${DIST}/${oci_rel}" ]]; then
+    local obj
+    obj="$(file_obj "$oci_rel" | jq -c '. + {type: "oci"}')"
+    atts="$(add_to_array "$atts" "$obj")"
+  fi
+
+  # local sigstore bundles (attested to specific binary)
+  while IFS= read -r abs; do
+    local rel fname obj platform_key platform_label
+    rel="${abs#"${DIST}/"}"
+    fname="$(basename "$rel")"
+
+    # extract platform from filename if present (for artifact-scoped attestations)
+    local after="${fname#"${basefile}".}"
+    local before_intoto="${after%.intoto.v1.sigstore.json}"
+
+    if [[ "$before_intoto" != "$after" && -n "$before_intoto" && "$before_intoto" != *"."* ]]; then
+      # has platform suffix like "linux-amd64"
+      platform_key="${before_intoto//-/_}"
+      platform_label="${before_intoto//-//}"
+      # fix: only first dash becomes slash
+      local os="${before_intoto%%-*}"
+      local arch="${before_intoto#*-}"
+      platform_key="${os}_${arch}"
+      platform_label="${os}/${arch}"
+
+      obj="$(file_obj "$rel" | jq -c \
+        --arg pk "$platform_key" \
+        --arg pl "$platform_label" \
+        '. + {type: "local", platform_key: $pk, platform_label: $pl}')"
+    else
+      obj="$(file_obj "$rel" | jq -c '. + {type: "local"}')"
+    fi
+
+    atts="$(add_to_array "$atts" "$obj")"
+  done < <(find "${DIST}/${att_dir}" -maxdepth 1 -type f -name "${basefile}*.intoto.v1.sigstore.json" 2>/dev/null | LC_ALL=C sort)
+
+
+
+
+
+  echo "$atts"
 }
