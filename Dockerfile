@@ -35,8 +35,8 @@ RUN curl -sSL https://github.com/sigstore/cosign/releases/download/v3.0.4/cosign
     && chmod +x /usr/local/bin/cosign
 
 # Install syft pinned version
-RUN curl -sSL https://github.com/anchore/syft/releases/download/v1.41.0/syft_1.41.0_linux_amd64.tar.gz -o /tmp/syft.tar.gz \
-    && echo "cd00ebbf7b7c0a9f69a7ac1170ad2e9ed2de389db7fd96a61d8220daf0606d98  /tmp/syft.tar.gz" | sha256sum -c - \
+RUN curl -sSL https://github.com/anchore/syft/releases/download/v1.41.2/syft_1.41.2_linux_amd64.tar.gz -o /tmp/syft.tar.gz \
+    && echo "7e0f45251d2a3998d29dfb6575bc662575dd5864c27bdc11625cc369760a17ad  /tmp/syft.tar.gz" | sha256sum -c - \
     && tar -xzvf /tmp/syft.tar.gz -C /usr/local/bin syft \
     && chmod +x /usr/local/bin/syft
 
@@ -47,8 +47,8 @@ RUN curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.68.2/tr
     && chmod +x /usr/local/bin/trivy
 
 # Install grype pinned version
-RUN curl -sSL https://github.com/anchore/grype/releases/download/v0.106.0/grype_0.106.0_linux_amd64.tar.gz -o /tmp/grype.tar.gz \
-    && echo "573e73c54978f54650610bd395aa42871a950e4f515f7a4c23c1b6e3df873336  /tmp/grype.tar.gz" | sha256sum -c - \
+RUN curl -sSL https://github.com/anchore/grype/releases/download/v0.107.1/grype_0.107.1_linux_amd64.tar.gz -o /tmp/grype.tar.gz \
+    && echo "a434ecfd1b3aff9c5a8f9186a57c3c09b34bdbeeeeb00769313568be17af6297  /tmp/grype.tar.gz" | sha256sum -c - \
     && tar -xzvf /tmp/grype.tar.gz -C /usr/local/bin grype \
     && chmod +x /usr/local/bin/grype
 

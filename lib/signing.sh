@@ -141,7 +141,7 @@ attest_file_dsse_v1() {
     export AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2
 
     log "==> (attest) cosign attest-blob (DSSE bundle)"
-    if ! err="$( cosign_with_signer_aws attest-blob --yes --key "$SIGNER_URI" --statement "$tmp_statement" --bundle "$bundle_out" --output-file /dev/null 2>&1 >/dev/null )"; then
+    if ! err="$( cosign_with_signer_aws attest-blob --no-tlog-upload --yes --key "$SIGNER_URI" --statement "$tmp_statement" --bundle "$bundle_out" --output-file /dev/null 2>&1 >/dev/null )"; then
       die "ERROR: cosign attest-blob failed: $err"
       return 1
     fi
