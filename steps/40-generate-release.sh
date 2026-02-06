@@ -15,6 +15,7 @@ source "$basepath/lib/signing.sh"
 source "$basepath/lib/evidence.sh"
 source "$basepath/lib/oras.sh"
 source "$basepath/lib/release.sh"
+source "$basepath/lib/summary.sh"
 
 # Enable independent step execution
 ctx_init_if_needed

@@ -140,6 +140,10 @@ generate_component_release_json() {
   source="$( release_min_source_json "$BUILDCTX_PATH" )"
   builder="$( release_min_builder_json "$BUILDCTX_PATH" )"
   release_policy="$( generate_release_policy )"
+  log "==> (release) generating summary for component=${component}"
+  local release_summary
+  release_summary="$( generate_component_release_summary "$component" )"
+
   jq -n \
     --arg schema "$schema" \
     --arg app "$app" \
@@ -156,6 +160,7 @@ generate_component_release_json() {
     --argjson source "$source" \
     --argjson builder "$builder" \
     --argjson release_policy "$release_policy" \
+    --argjson release_summary "$release_summary" \
     '{
       schema: $schema,
       app: $app,
@@ -169,6 +174,7 @@ generate_component_release_json() {
       builder: $builder,
       component: $component,
       policy: $release_policy,
+      summary: $release_summary,
       files: { inventory: $inventory },
       distribution: $distribution
     } + $release_data | with_entries(select(.value != null))' \
