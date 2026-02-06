@@ -813,7 +813,7 @@ evidence_generate_component_artifact_scan_reports() {
   # Govulncheck (binary)
   log "==> (evidence) ${component}/${pkey} govulncheck vuln json"
   # wrapping with jq or else it emits multiple json objects which is invalid format for cosign and our evidence predicate types
-  govulncheck -mode=binary -json "$bin_path" | jq -s '.' > "${out_prefix}.govulncheck.vuln.json"
+  govulncheck -mode=binary -json "$bin_path" | jq -s '{ entries: . }' > "${out_prefix}.govulncheck.vuln.json"
   
   log "==> (evidence) ${component}/${pkey} govulncheck vuln sarif"
   govulncheck -mode=binary -format sarif "$bin_path" > "${out_prefix}.govulncheck.vuln.sarif.json"
@@ -850,7 +850,7 @@ evidence_generate_repo_source_scan_reports() {
   # generate govulncheck repo source report (json)
   log "==> (evidence) generating govulncheck repo-wide source report (json)"
   # wrapping with jq or else it emits multiple json objects which is invalid format for cosign and our evidence predicate types
-  govulncheck -json ./... | jq -s '.' > "${DIST}/_repo/scan/source/govulncheck.vuln.json"
+  govulncheck -json ./... | jq -s '{ entries: . }' > "${DIST}/_repo/scan/source/govulncheck.vuln.json"
   # generate govulncheck repo source report (sarif)
   log "==> (evidence) generating govulncheck report (sarif)"
   govulncheck -format sarif ./... > "${DIST}/_repo/scan/source/govulncheck.vuln.sarif.json"
@@ -886,7 +886,7 @@ evidence_generate_component_source_scan_reports() {
   # generate component source govulnscan report (json)
   log "==> (evidence) generating govulncheck component=${component} source report (json)"
   # wrapping with jq or else it emits multiple json objects which is invalid format for cosign and our evidence predicate types
-  govulncheck -json "./cmd/${component}/..." | jq -s '.' > "${DIST}/${component}/scan/source/govulncheck.vuln.json"
+  govulncheck -json "./cmd/${component}/..." | jq -s '{ entries: . }' > "${DIST}/${component}/scan/source/govulncheck.vuln.json"
   # generate component source govulnscan report (sarif)
   log "==> (evidence) generating govulncheck component=${component} source report (json)"
   govulncheck -format sarif "./cmd/${component}/..." > "${DIST}/${component}/scan/source/govulncheck.vuln.sarif.json"
