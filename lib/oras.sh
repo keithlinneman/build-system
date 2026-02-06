@@ -113,7 +113,7 @@ oci_push_binary() {
 
   local subject_digest_ref subject_desc subject_size subject_media_type now
   subject_digest_ref="${registry}/${repo}@${digest}"
-  subject_desc="$( oras manifest fetch --descriptor "${subject_digest_ref}" --output json )"
+  subject_desc="$( oras manifest fetch --descriptor "${subject_digest_ref}" )"
   subject_size="$( echo "${subject_desc}" | jq -r '.size' )"
   subject_media_type="$( echo "${subject_desc}" | jq -r '.mediaType' )"
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

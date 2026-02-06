@@ -87,7 +87,7 @@ classify_kind() {
   local rel="$1"
   if [[ "$rel" == *"/attestations/"* ]] || [[ "$rel" == *.sigstore.json ]]; then
     echo "attestation"
-  elif [[ "$rel" == *.sig ]]; then
+  elif [[ "$rel" == *.sig ]] || [[ "$rel" == *.bundle.sigstore.json ]]; then
     echo "signature"
   elif [[ "$rel" == *.sha256 ]]; then
     echo "checksum"
@@ -519,7 +519,7 @@ build_component_obj() {
   local build_manifest
   build_manifest="$(jq -n \
     --argjson manifest   "$(file_obj_or_null "${pfx}build.json")" \
-    --argjson signature  "$(file_obj_or_null "${pfx}build.json.sig")" \
+    --argjson signature  "$(file_obj_or_null "${pfx}build.json.bundle.sigstore.json")" \
     '{
        manifest:$manifest,
        signature:$signature
@@ -612,7 +612,7 @@ build_component_obj() {
 	    #  ' <<<"$subject_obj"
 	    #)"
 
-      sig_obj="$(file_obj_or_null "${bin_rel}.sig")"
+      sig_obj="$(file_obj_or_null "${bin_rel}.bundle.sigstore.json")"
       sha_obj="$(file_obj_or_null "${bin_rel}.sha256")"
 
       # sbom artifacts block

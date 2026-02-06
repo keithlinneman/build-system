@@ -13,21 +13,23 @@ sign_file()
   #SIGNER_URI="$(aws --profile "${AWS_BASE_PROFILE}" ssm get-parameter --name "/platform/signing/${ENV}/cosign/signer" --query Parameter.Value --output text)"
   #log "==> using kms signer url $SIGNER_URI"
 
-  local file sig
+  local file bundle
   file="$1"
-  sig="${file}.sig"
+  bundle="${file}.bundle.sigstore.json"
+
+  [[ -f "$file" ]] || die "sign_file: file to sign not found: $file"
+  [[ -n "$SIGNER_URI" ]] || die "sign_file: SIGNER_URI not set"
 
   # using subshell to separate env vars/creds that cosign relies on cleanly
   (
     # intentionally doing this in a subshell, suppress shellcheck subshell warnings
     # shellcheck disable=SC2030
+    # todo: should get region from signer uri or iam role and think about how we are going to manage multi-region signing/deploys
     AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2
 
-    log "==> (sign) signing file ${file} with cosign"
+    log "==> (sign) signing file ${file} with cosign bundle ${bundle}"
     # not using rekor/sigstore at all for now - offline signing using kms key
-    log "==> (sign) cosign sign-blob --yes --use-signing-config=false --new-bundle-format=false --key \"$SIGNER_URI\" --output-signature \"${sig}\" \"$file\""
-    #cosign sign-blob --yes --use-signing-config=false --new-bundle-format=false --key "$SIGNER_URI" --output-signature "${sig}" "$file" 1>/dev/null 2>&1
-    if ! err="$( cosign_with_signer_aws sign-blob --yes --use-signing-config=false --new-bundle-format=false --key "$SIGNER_URI" --output-signature "${sig}" "$file" 2>&1 >/dev/null )"; then
+    if ! err="$( cosign_with_signer_aws sign-blob --yes --key "$SIGNER_URI" --bundle "${bundle}" "$file" 2>&1 >/dev/null )"; then
       die "ERROR: cosign sign-blob failed: $err"
     fi
   )
@@ -36,6 +38,7 @@ sign_file()
 sign_release_json_for_component() {
   local component="${1:?component required}"
   [[ -f "${DIST}/${component}/release.json" ]] || die "sign_release_json_for_component: release.json not found for component=${component}"
+  
   sign_file "${DIST}/${component}/release.json"
 }
   
@@ -225,7 +228,7 @@ cosign_with_signer_aws() {
   log "==> (signing) running cosign with AWS_REGION=${region}"
   # intentionally calling this from a subshell, suppress shellcheck subshell warnings
   # shellcheck disable=SC2030 disable=SC2031
-  AWS_REGION="$region" AWS_DEFAULT_REGION="$region" cosign "$@"
+  AWS_REGION="$region" AWS_DEFAULT_REGION="$region" cosign "$@" --signing-config <(printf '{"mediaType":"application/vnd.dev.sigstore.signingconfig.v0.2+json"}')
 }
 
 oci_fetch_attestation_dsse() {
