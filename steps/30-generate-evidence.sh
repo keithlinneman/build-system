@@ -114,5 +114,7 @@ for component in $( ctx_list_plan_components );do
   log "==> (evidence) attesting inventory.json to component index"
   attest_inventory_json_to_index "${component}"
 
-done
+  # sign inventory.json for s3 release flow verification
+  sign_inventory_json_for_component "${component}"
 
+done

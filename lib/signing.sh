@@ -41,7 +41,14 @@ sign_release_json_for_component() {
   
   sign_file "${DIST}/${component}/release.json"
 }
+
+sign_inventory_json_for_component() {
+  local component="${1:?component required}"
+  [[ -f "${DIST}/${component}/inventory.json" ]] || die "sign_inventory_json_for_component: inventory.json not found for component=${component}"
   
+  sign_file "${DIST}/${component}/inventory.json"
+}
+
 attest_file_dsse_v1() {
   local subject_path="${1:?subject_path required}"
   local predicate_path="${2:?predicate_path required}"

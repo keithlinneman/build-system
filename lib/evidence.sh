@@ -1194,7 +1194,9 @@ evidence_list_component_artifact_scans() {
   prefix="${component}.${os}-${arch}."
 
   # only attesting sarif reports for now, keeping json on disk for extra audit data
-  find "$dir" -maxdepth 1 -type f -name "${prefix}*.sarif.json" \
+  # nevermind if we are generating evidence it must be attested. renamed outputs to include full original filename to support this
+  #find "$dir" -maxdepth 1 -type f -name "${prefix}*.sarif.json" \
+  find "$dir" -maxdepth 1 -type f -name "${prefix}*.json" \
     | LC_ALL=C sort \
     | awk -v dist="$DIST/" '{ sub("^" dist, "", $0); print $0 }' \
     | jq -Rs --arg prefix "$prefix" '
