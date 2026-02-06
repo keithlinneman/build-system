@@ -40,56 +40,41 @@ sign_release_json_for_component() {
 }
   
 attest_file_dsse_v1() {
-  set -euo pipefail
-
   local subject_path="${1:?subject_path required}"
   local predicate_path="${2:?predicate_path required}"
   local predicate_type="${3:?predicate_type required}"
-
-  # Optional overrides:
   local subject_name="${4:-}"
   local bundle_out="${5:-}"
 
   [[ -f "$subject_path" ]]   || { die "attest: subject not found: $subject_path"; return 2; }
   [[ -f "$predicate_path" ]] || { die "attest: predicate not found: $predicate_path"; return 2; }
+  [[ -n "${DIST:-}" ]]          || { die "attest: DIST env var not set"; return 2; }
 
-  # get stable portable subject name (use path relative to dist/ if available)
+
+ # subject name: path relative to DIST
   if [[ -z "$subject_name" ]]; then
-    if command -v realpath >/dev/null 2>&1; then
-      # If DIST_DIR is set, use it; else try "dist"
-      local dist_root="${DIST_DIR:-dist}"
-      subject_name="$(realpath --relative-to="$dist_root" "$subject_path" 2>/dev/null || basename "$subject_path")"
-    else
-      subject_name="$(basename "$subject_path")"
-    fi
+    subject_name="$( realpath --relative-to="$DIST" "$subject_path" 2>/dev/null || basename "$subject_path" )"
   fi
 
-  # derive bundle output path under attestations/ that mirrors the predicate path
-  if [[ -z "$bundle_out" ]]; then
-    local dist_root rel first base rel_under
-    dist_root="${DIST_DIR:-dist}"
 
-    if command -v realpath >/dev/null 2>&1; then
-      rel="$(realpath --relative-to="$dist_root" "$predicate_path" 2>/dev/null || basename "$predicate_path")"
-    else
-      rel="${predicate_path#"${dist_root}"/}"
-    fi
+  # derive bundle output path to mirror predicate path under attestations/
+  if [[ -z "$bundle_out" ]]; then
+    local rel first rel_under
+    rel="$(realpath --relative-to="$DIST" "$predicate_path")"
 
     first="${rel%%/*}"
     case "$first" in
-      scan|sbom|attestations|release.json|release.json.sig)
-        base="$dist_root"
-        rel_under="$rel"
+      scan|sbom|attestations)
+        bundle_out="${DIST}/attestations/${rel}.intoto.v1.sigstore.json"
         ;;
       *)
-        base="$dist_root/$first"
         rel_under="${rel#"${first}"/}"
+        bundle_out="${DIST}/${first}/attestations/${rel_under}.intoto.v1.sigstore.json"
         ;;
     esac
-
-    bundle_out="${base}/attestations/${rel_under}.intoto.v1.sigstore.json"
     mkdir -p "$(dirname "$bundle_out")"
   fi
+
 
 
   local sha tmp_statement
@@ -138,10 +123,10 @@ attest_file_dsse_v1() {
 
     # intentionally doing this in a subshell, suppress shellcheck subshell warnings
     # shellcheck disable=SC2031 disable=SC2030
-    export AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2
+    export AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2 COSIGN_REKOR_URL=""
 
     log "==> (attest) cosign attest-blob (DSSE bundle)"
-    if ! err="$( cosign_with_signer_aws attest-blob --no-tlog-upload --yes --key "$SIGNER_URI" --statement "$tmp_statement" --bundle "$bundle_out" --output-file /dev/null 2>&1 >/dev/null )"; then
+    if ! err="$( cosign_with_signer_aws attest-blob --rekor-url='' --yes --key "$SIGNER_URI" --statement "$tmp_statement" --bundle "$bundle_out" --output-file /dev/null 2>&1 >/dev/null )"; then
       die "ERROR: cosign attest-blob failed: $err"
       return 1
     fi
