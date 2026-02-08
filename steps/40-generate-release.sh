@@ -16,6 +16,7 @@ source "$basepath/lib/evidence.sh"
 source "$basepath/lib/oras.sh"
 source "$basepath/lib/release.sh"
 source "$basepath/lib/summary.sh"
+source "$basepath/lib/gating.sh"
 
 # Enable independent step execution
 ctx_init_if_needed
@@ -29,6 +30,19 @@ ctx_export_release_vars
 # log "==> (release) generating release.json"
 # generate_release_json || die "failed to generate release json!"
 
+# Gate: license compliance
+log "==> (release) gating license compliance"
+for component in $( ctx_list_plan_components ); do
+  src_lic="${DIST}/${component}/license/source/source.licenses.json"
+  if [[ -f "$src_lic" ]]; then
+    gate_license_compliance "$src_lic" "${RELEASE_TRACK:-warn}"
+  else
+    # we may want to log here instead or have that as a defined policy option
+    # log "[-] WARNING: no source license report found for component=${component} at expected path ${src_lic}, skipping license compliance gate for this component"
+    die "no source license report found for component=${component} at expected path ${src_lic}, refusing build"
+  fi
+done
+
 # Generate per-component release manifest
 log "==> (evidence) generating per-component release manifests"
 for component in $( ctx_list_plan_components );do
@@ -40,3 +54,4 @@ for component in $( ctx_list_plan_components );do
   # sign the release.json for s3 release flow verification
   sign_release_json_for_component "$component" || die "failed to sign release.json for component=${component}!"
 done
+

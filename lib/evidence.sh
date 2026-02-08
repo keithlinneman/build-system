@@ -1597,8 +1597,15 @@ license_report_generate_from_sbom() {
   producer="${base#"${nameprefix}."}"
   producer="${producer%%.*}"
 
+  # load license policy from app config
+  local license_policy
+  license_policy="$( jq -c '.policy.license // {}' "${APP_CFG_PATH:?APP_CFG_PATH required}" )"
+
+  # generate license report
+  # testing an implementation of report generation and license gate evaluation in jq for efficiency
   jq -n \
     --slurpfile bom "$sbom_abs" \
+    --argjson policy "$license_policy" \
     --arg schema "phxi.license_report.v1" \
     --arg predicate_type "${PRED_LICENSE_REPORT:-}" \
     --arg generated_at "$now" \
@@ -1654,19 +1661,67 @@ license_report_generate_from_sbom() {
         licenses: cdx_licenses_for(c)
       } | with_entries(select(.value != null)));
 
+    def gate_license($l):
+      # check deny exact match
+      if (($policy.deny // []) | any(. == $l)) then
+        { result: "denied", reason: "deny_list" }
+      # check deny regex
+      elif (($policy.deny_regex // []) | any(. as $pat | $l | test($pat))) then
+        { result: "denied", reason: "deny_regex" }
+      # check allow exact match
+      elif (($policy.allow // []) | any(. == $l)) then
+        { result: "allowed", reason: "allow_list" }
+      # unknown — depends on allow_unknown
+      elif ($policy.allow_unknown // false) then
+        { result: "allowed", reason: "allow_unknown" }
+      else
+        { result: "unknown", reason: "not_in_allow_list" }
+      end;
+
+    def gate_item(item):
+      (item.licenses // []) as $lics |
+      if ($lics | length) == 0 then
+        # no licenses declared
+        if (($policy.max_without_license // 0) == 0) then
+          { result: "denied", reason: "no_license_declared", details: [] }
+        else
+          { result: "unknown", reason: "no_license_declared", details: [] }
+        end
+      else
+        ($lics | map(. as $l | { license: $l } + gate_license($l))) as $details |
+        if ($details | any(.result == "denied")) then
+          { result: "denied", reason: "license_denied", details: $details }
+        elif ($details | any(.result == "unknown")) then
+          { result: "unknown", reason: "license_unknown", details: $details }
+        else
+          { result: "allowed", reason: "all_licenses_allowed", details: $details }
+        end
+      end;
+
     def summarize(items):
       {
-        items_total: (items|length),
-        with_licenses: (items | map(select((.licenses // [])|length > 0)) | length),
-        without_licenses: (items | map(select((.licenses // [])|length == 0)) | length),
-        unique_licenses: (
-          (items | map(.licenses[]?) | unique | length)
-        ),
+        items_total: (items | length),
+        with_licenses: (items | map(select((.licenses // []) | length > 0)) | length),
+        without_licenses: (items | map(select((.licenses // []) | length == 0)) | length),
+        unique_licenses: (items | map(.licenses[]?) | unique | length),
         by_license: (
           (items | map(.licenses[]?) | sort)
           | group_by(.)
           | map({license: .[0], count: length})
-        )
+        ),
+        gate: {
+          allowed: (items | map(select(.gate.result == "allowed")) | length),
+          denied: (items | map(select(.gate.result == "denied")) | length),
+          unknown: (items | map(select(.gate.result == "unknown")) | length),
+          denied_licenses: (
+            [items[].gate.details[]? | select(.result == "denied") | .license]
+            | unique
+          ),
+          unknown_licenses: (
+            [items[].gate.details[]? | select(.result == "unknown") | .license]
+            | unique
+          )
+        }
       };
 
     ($bom[0]) as $b |
@@ -1676,10 +1731,10 @@ license_report_generate_from_sbom() {
         (
           ([ $b.metadata?.component? ] | map(select(.!=null)))
           + ($b.components // [])
-          | map(cdx_item(.))
+          | map(cdx_item(.) | . + { gate: gate_item(.) })
         )
       elif ($b.spdxVersion? or $b.SPDXID? or $b.packages?) then
-        (($b.packages // []) | map(spdx_item(.)))
+        (($b.packages // []) | map(spdx_item(.) | . + { gate: gate_item(.) }))
       else
         []
       end
@@ -1702,11 +1757,13 @@ license_report_generate_from_sbom() {
           features: $sbom_features
         }
       } | with_entries(select(.value != null))),
+      policy: $policy,
       summary: summarize($items),
       items: $items
     }
     | with_entries(select(.value != null))
     ' > "$out_abs"
+
 }
 
 evidence_generate_component_source_license_report() {

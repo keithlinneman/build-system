@@ -262,9 +262,15 @@ generate_release_policy() {
   policy_schema_version="phxi.policy.v1"
   policy_enforcement="${policy_enforcement:-warn}"
 
-  policy_defaults="$(
-    jq --arg enforcement "$policy_enforcement" --arg license_predicate_type "${PRED_LICENSE_REPORT:-https://phxi.net/attestations/licenses/v1}" -n '
-    {
+  # read license policy from app config
+  local license_policy
+  license_policy="$( jq -c '.policy.license // {}' "${APP_CFG_PATH:?}" )"
+
+  policy_defaults="$( jq -n \
+    --arg enforcement "$policy_enforcement" \
+    --arg license_predicate_type "${PRED_LICENSE_REPORT:-https://phxi.net/attestations/licenses/v1}" \
+    --argjson license_policy "$license_policy" \
+    '{
       enforcement: $enforcement,
       signing: {
         require_inventory_signature: true,
@@ -293,48 +299,7 @@ generate_release_policy() {
           attestation_required: true
         }
       },
-      license: {
-        input: {
-          predicate_type: $license_predicate_type,
-          preferred_scope_order: ["artifacts","source"]
-        },
-        missing: {
-          max_without_licenses: 0
-        },
-        deny: {
-          spdx_ids: [
-            "GPL-2.0-only","GPL-2.0-or-later",
-            "GPL-3.0-only","GPL-3.0-or-later",
-            "AGPL-3.0-only","AGPL-3.0-or-later",
-            "LGPL-2.1-only","LGPL-2.1-or-later",
-            "LGPL-3.0-only","LGPL-3.0-or-later",
-            "SSPL-1.0","BUSL-1.1"
-          ],
-          regex: ["(?i)\\bGPL\\b","(?i)\\bAGPL\\b","(?i)\\bLGPL\\b"]
-        },
-        allow: {
-          mode: "optional",
-          spdx_ids: ["MIT","Apache-2.0","BSD-2-Clause","BSD-3-Clause","ISC"],
-          allow_unknown: false
-        },
-        expressions: {
-          enabled: true,
-          parse: "spdx-lite",
-          or_semantics: "any-allowed",
-          and_semantics: "all-allowed",
-          unknown_semantics: "deny"
-        },
-        normalization: {
-          casefold: true,
-          trim: true,
-          aliases: {
-            "Apache 2.0": "Apache-2.0",
-            "Apache License 2.0": "Apache-2.0",
-            "BSD-3": "BSD-3-Clause",
-            "BSD-2": "BSD-2-Clause"
-          }
-        }
-      },
+      license: $license_policy,
       vulnerability: {
         normalization: {
           strategy: "worst"
@@ -355,35 +320,35 @@ generate_release_policy() {
       }
     }'
   )"
-  policy_overrides="$( 
-    jq -n '
-    [
-      {
-        selector: {
-          component: "web",
-          scope: "index"
-        },
-        set: {
-          enforcement: "block"
-        }
-      },
-      {
-        selector: {
-          component: "web",
-          scope: "artifact",
-          platform: "linux/amd64"
-        },
-        set: {
-          vulnerability: {
-            gating: {
-              block_on: ["critical","high","medium"],
-              allow_if_vex: false
-            }
-          }
-        }
-      }
-    ]'
-  )"
+  # policy_overrides="$( 
+  #   jq -n '
+  #   [
+  #     {
+  #       selector: {
+  #         component: "web",
+  #         scope: "index"
+  #       },
+  #       set: {
+  #         enforcement: "block"
+  #       }
+  #     },
+  #     {
+  #       selector: {
+  #         component: "web",
+  #         scope: "artifact",
+  #         platform: "linux/arm64"
+  #       },
+  #       set: {
+  #         vulnerability: {
+  #           gating: {
+  #             block_on: ["critical","high","medium"],
+  #             allow_if_vex: false
+  #           }
+  #         }
+  #       }
+  #     }
+  #   ]'
+  # )"
 
   policy_defaults="${policy_defaults:-}"
   policy_overrides="${policy_overrides:-}"
