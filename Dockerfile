@@ -1,7 +1,7 @@
 # pull in aws cli v2 pinned version
 FROM amazon/aws-cli:2.33.8 AS awscli
 # pull in golang pinned version
-FROM golang:1.25.6-bookworm AS golang
+FROM golang:1.25.7-bookworm AS golang
 # Using minimal debian for now, pulling latest for build env
 FROM debian:bookworm-slim
 
