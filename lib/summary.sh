@@ -55,8 +55,9 @@ summary_extract_grype_vulns() {
   [[ -f "$report" ]] || { return 0; }
   jq -c "${_SUMMARY_SEV_RANK_JQ}"'
     [.matches[]?
+     | .vulnerability.id as $vid
      | {
-         id: .vulnerability.id,
+         id: $vid,
          severity: (.vulnerability.severity | ascii_downcase),
          package: (.artifact.name // null),
          installed_version: (.artifact.version // null),
@@ -73,40 +74,55 @@ summary_extract_grype_vulns() {
   ' "$report" 2>/dev/null || true
 }
 
-# Govulncheck NDJSON: count unique .finding.osv entries
-# Returns a JSON object, not NDJSON tuples, since govulncheck doesn't use severity levels
+# Govulncheck JSON: {"entries": [{config}, {osv}, {finding}, ...]}
+# Count unique vulnerability findings.
+# Returns a JSON object with count and GO-YYYY-XXXX IDs.
 summary_extract_govulncheck() {
   local report="$1"
   [[ -f "$report" ]] || { echo '{"findings":0,"vuln_ids":[]}'; return 0; }
 
-  # govulncheck -json emits NDJSON (one object per line)
-  jq -s '
-    [.[] | select(.finding?) | .finding.osv]
+  jq '
+    [.entries[]? | select(.finding?) | .finding.osv]
     | unique
     | { findings: length, vuln_ids: . }
   ' "$report" 2>/dev/null || echo '{"findings":0,"vuln_ids":[]}'
 }
 
-# Govulncheck enriched NDJSON: extract findings with package metadata
-# Outputs NDJSON lines compatible with the findings merge pipeline
+# Govulncheck enriched NDJSON: extract findings with package metadata.
+# Correlates finding entries with osv entries for CVE aliases.
+# Uses CVE alias as the finding ID when available for cross-scanner dedup.
+# Output: NDJSON lines compatible with the findings merge pipeline.
 summary_extract_govulncheck_findings() {
   local report="$1"
   [[ -f "$report" ]] || { return 0; }
 
-  # Extract unique findings with module info from trace
   jq -c '
-    select(.finding?)
+    # Build lookup: osv_id -> cve_alias
+    ([.entries[]? | select(.osv?) | .osv
+      | { (.id): ([(.aliases // [])[] | select(startswith("CVE-"))][0] // null) }
+    ] | add // {}) as $cve_lookup |
+
+    # Extract unique findings, enrich with CVE alias
+    [.entries[]? | select(.finding?) | .finding
+     | {
+         osv_id: .osv,
+         fixed_version: (.fixed_version // null),
+         module: (.trace[0].module // null),
+         version: (.trace[0].version // null)
+       }
+    ]
+    | unique_by(.osv_id)
+    | .[]
     | {
-        id: .finding.osv,
+        id: ($cve_lookup[.osv_id] // .osv_id),
         severity: "unknown",
-        package: (.finding.trace[0].module // null),
-        installed_version: (.finding.trace[0].version // null),
-        fixed_version: (.finding.fixedVersion // null),
+        package: .module,
+        installed_version: .version,
+        fixed_version: .fixed_version,
         title: null,
-        source_url: ("https://pkg.go.dev/vuln/" + .finding.osv),
+        source_url: ("https://pkg.go.dev/vuln/" + .osv_id),
         scanner: "govulncheck"
       }
-    | select(.id != null and (.id|length) > 0)
   ' "$report" 2>/dev/null || true
 }
 
@@ -500,7 +516,7 @@ summary_collect_signing_info() {
     inventory_signed=true
   fi
 
-  # release.json.sig is created after summary generation, so we don't check it here
+  # release.json.sig is created after summary generation
   _SIGNING_SUMMARY="$(jq -n \
     --arg method "$method" \
     --arg key_ref "$key_ref" \
