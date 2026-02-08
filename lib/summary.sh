@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 
 # canonical severity ordering (lower = worse) - used by jq expressions for worst-case normalization
-SUMMARY_SEV_RANK_JQ='
+_SUMMARY_SEV_RANK_JQ='
   def sev_rank:
     if   . == "critical"   then 0
     elif . == "high"       then 1
@@ -21,14 +21,26 @@ SUMMARY_SEV_RANK_JQ='
     else "unknown" end;
 '
 
-# output lines of {"id":"CVE-...", "severity":"high"} for each vuln from each scanner with normalizations applied
-# trivy json: .Results[].Vulnerabilities[]
+# Each scanner outputs NDJSON lines of {"id":"CVE-...", "severity":"high"}
+# Deduplicated within a single report file (same CVE reported multiple
+# times within one scan takes the worst severity)
+
+# Trivy JSON: .Results[].Vulnerabilities[]
 summary_extract_trivy_vulns() {
   local report="$1"
   [[ -f "$report" ]] || { return 0; }
-  jq -c "${SUMMARY_SEV_RANK_JQ}"'
+  jq -c "${_SUMMARY_SEV_RANK_JQ}"'
     [.Results[]?.Vulnerabilities[]?
-     | {id: .VulnerabilityID, severity: (.Severity | ascii_downcase)}
+     | {
+         id: .VulnerabilityID,
+         severity: (.Severity | ascii_downcase),
+         package: (.PkgName // null),
+         installed_version: (.InstalledVersion // null),
+         fixed_version: (.FixedVersion // null),
+         title: (.Title // null),
+         source_url: (.PrimaryURL // null),
+         scanner: "trivy"
+       }
      | select(.id != null and (.id|length) > 0)
     ]
     | group_by(.id)
@@ -37,13 +49,22 @@ summary_extract_trivy_vulns() {
   ' "$report" 2>/dev/null || true
 }
 
-# grype json: .matches[].vulnerability
+# Grype JSON: .matches[].vulnerability
 summary_extract_grype_vulns() {
   local report="$1"
   [[ -f "$report" ]] || { return 0; }
-  jq -c "${SUMMARY_SEV_RANK_JQ}"'
+  jq -c "${_SUMMARY_SEV_RANK_JQ}"'
     [.matches[]?
-     | {id: .vulnerability.id, severity: (.vulnerability.severity | ascii_downcase)}
+     | {
+         id: .vulnerability.id,
+         severity: (.vulnerability.severity | ascii_downcase),
+         package: (.artifact.name // null),
+         installed_version: (.artifact.version // null),
+         fixed_version: ((.vulnerability.fix.versions // [])[0] // null),
+         title: (.vulnerability.description // null),
+         source_url: (.vulnerability.dataSource // null),
+         scanner: "grype"
+       }
      | select(.id != null and (.id|length) > 0)
     ]
     | group_by(.id)
@@ -52,8 +73,8 @@ summary_extract_grype_vulns() {
   ' "$report" 2>/dev/null || true
 }
 
-# govulncheck - count unique .finding.osv entries
-# returns JSON object since govulncheck doesnt use severity levels
+# Govulncheck NDJSON: count unique .finding.osv entries
+# Returns a JSON object, not NDJSON tuples, since govulncheck doesn't use severity levels
 summary_extract_govulncheck() {
   local report="$1"
   [[ -f "$report" ]] || { echo '{"findings":0,"vuln_ids":[]}'; return 0; }
@@ -66,14 +87,42 @@ summary_extract_govulncheck() {
   ' "$report" 2>/dev/null || echo '{"findings":0,"vuln_ids":[]}'
 }
 
-# per-scanner severity counts with deduplication within each
+# Govulncheck enriched NDJSON: extract findings with package metadata
+# Outputs NDJSON lines compatible with the findings merge pipeline
+summary_extract_govulncheck_findings() {
+  local report="$1"
+  [[ -f "$report" ]] || { return 0; }
 
-summary_count_severities() {
+  # Extract unique findings with module info from trace
+  jq -c '
+    select(.finding?)
+    | {
+        id: .finding.osv,
+        severity: "unknown",
+        package: (.finding.trace[0].module // null),
+        installed_version: (.finding.trace[0].version // null),
+        fixed_version: (.finding.fixedVersion // null),
+        title: null,
+        source_url: ("https://pkg.go.dev/vuln/" + .finding.osv),
+        scanner: "govulncheck"
+      }
+    | select(.id != null and (.id|length) > 0)
+  ' "$report" 2>/dev/null || true
+}
+
+# Dedup and count severities from a stream of {id, severity} NDJSON.
+# Deduplicates by vuln ID across all lines (so same CVE from source scan
+# and artifact scan counts once, taking worst severity).
+# Input: file containing NDJSON lines
+# Output: JSON object {"critical":N, "high":N, ...}
+summary_dedup_and_count() {
   local input="$1"
   [[ -s "$input" ]] || { echo '{"critical":0,"high":0,"medium":0,"low":0,"negligible":0,"unknown":0}'; return 0; }
 
-  jq -s '
-    group_by(.severity)
+  jq -s "${_SUMMARY_SEV_RANK_JQ}"'
+    group_by(.id)
+    | map(min_by(.severity | sev_rank))
+    | group_by(.severity)
     | map({key: .[0].severity, value: length})
     | from_entries
     | {
@@ -87,12 +136,15 @@ summary_count_severities() {
   ' "$input"
 }
 
-# deduplications across scanners for same cve - keep worst severity, count severity totals after deduplication
+# Merge NDJSON vuln tuples from multiple scanners.
+# Same CVE across scanners → keep worst severity.
+# Input: file containing all NDJSON lines from all scanners (trivy + grype)
+# Output: JSON object with merged counts + total
 summary_merge_and_count() {
   local input="$1"
   [[ -s "$input" ]] || { echo '{"critical":0,"high":0,"medium":0,"low":0,"negligible":0,"unknown":0,"total":0}'; return 0; }
 
-  jq -s "${SUMMARY_SEV_RANK_JQ}"'
+  jq -s "${_SUMMARY_SEV_RANK_JQ}"'
     group_by(.id)
     | map(min_by(.severity | sev_rank))
     | group_by(.severity)
@@ -110,7 +162,36 @@ summary_merge_and_count() {
   ' "$input"
 }
 
-# determine worst severity present in merged counts
+
+# Merge enriched NDJSON vuln tuples into a deduplicated findings array.
+# Same vuln ID across scanners/scans → worst severity, merged scanner list,
+# first non-null metadata wins.
+# Input: file containing all enriched NDJSON lines (trivy + grype + govulncheck)
+# Output: JSON array of finding objects
+summary_merge_findings() {
+  local input="$1"
+  [[ -s "$input" ]] || { echo '[]'; return 0; }
+
+  jq -s "${_SUMMARY_SEV_RANK_JQ}"'
+    group_by(.id)
+    | map(
+        sort_by(.severity | sev_rank)
+        | {
+            id: .[0].id,
+            severity: .[0].severity,
+            package: (map(.package // empty) | first // null),
+            installed_version: (map(.installed_version // empty) | first // null),
+            fixed_version: (map(.fixed_version // empty) | first // null),
+            title: (map(.title // empty) | first // null),
+            source_url: (map(.source_url // empty) | first // null),
+            scanners: ([.[].scanner] | unique)
+          }
+      )
+    | sort_by(.severity | sev_rank)
+  ' "$input"
+}
+
+# Determine worst severity present in merged counts
 summary_worst_severity() {
   local counts_json="$1"
   jq -r '
@@ -125,9 +206,9 @@ summary_worst_severity() {
   ' <<<"$counts_json"
 }
 
-# generate scan reports
-
-# collect all scan reports for a component (source + artifacts), extract per-scanner results
+# Collect all scan reports for a component (source + artifacts)
+# and extract per-scanner vuln tuples into temp files.
+# Sets bash variables for downstream use.
 summary_collect_component_vulns() {
   local component="$1"
   local tmpdir
@@ -137,17 +218,22 @@ summary_collect_component_vulns() {
   local grype_vulns="${tmpdir}/grype.ndjson"
   local all_vulns="${tmpdir}/all.ndjson"
 
-  # i cant go back to 'touch' or 'truncate' after llms introduced me to smiley face truncation
-  :> "$trivy_vulns"
-  :> "$grype_vulns"
-  :> "$all_vulns"
+  : > "$trivy_vulns"
+  : > "$grype_vulns"
+  : > "$all_vulns"
 
-  # source-level scans (grype + govulncheck only, no trivy on source)
+  # track which scanners produced reports (independent of whether they found vulns)
+  local has_trivy=false has_grype=false has_govulncheck=false
+
+  # source-level scans
   local src_scan_dir="${DIST}/${component}/scan/source"
-
   if [[ -d "$src_scan_dir" ]]; then
     if [[ -f "${src_scan_dir}/grype.vuln.json" ]]; then
+      has_grype=true
       summary_extract_grype_vulns "${src_scan_dir}/grype.vuln.json" >> "$grype_vulns"
+    fi
+    if [[ -f "${src_scan_dir}/govulncheck.vuln.json" ]]; then
+      has_govulncheck=true
     fi
   fi
 
@@ -159,32 +245,37 @@ summary_collect_component_vulns() {
       base="$(basename "$f")"
       case "$base" in
         *.trivy.vuln.json)
+          has_trivy=true
           summary_extract_trivy_vulns "$f" >> "$trivy_vulns"
           ;;
         *.grype.vuln.json)
+          has_grype=true
           summary_extract_grype_vulns "$f" >> "$grype_vulns"
+          ;;
+        *.govulncheck.vuln.json)
+          has_govulncheck=true
           ;;
       esac
     done < <(find "$art_scan_dir" -maxdepth 1 -type f -name '*.vuln.json' ! -name '*.sarif.*' | LC_ALL=C sort)
   fi
 
-  # combine trivy + grype for cross-scanner dedup
+  # Combine trivy + grype for cross-scanner dedup
   cat "$trivy_vulns" "$grype_vulns" > "$all_vulns"
 
-  # per-scanner counts (within-scanner deduped)
+  # Per-scanner counts (deduped within scanner across all scan reports)
   local trivy_counts grype_counts
-  trivy_counts="$(summary_count_severities "$trivy_vulns")"
-  grype_counts="$(summary_count_severities "$grype_vulns")"
+  trivy_counts="$(summary_dedup_and_count "$trivy_vulns")"
+  grype_counts="$(summary_dedup_and_count "$grype_vulns")"
 
-  # govulncheck (source + artifact, merged)
-  local govulncheck_combined="${tmpdir}/govulncheck.ndjson"
-  : > "$govulncheck_combined"
+  # Govulncheck (source + artifact, merged)
+  local govulncheck_findings_ndjson="${tmpdir}/govulncheck_findings.ndjson"
+  : > "$govulncheck_findings_ndjson"
 
   # source govulncheck
+  local govulncheck_src_ids='[]'
   if [[ -f "${src_scan_dir}/govulncheck.vuln.json" ]]; then
-    summary_extract_govulncheck "${src_scan_dir}/govulncheck.vuln.json" > "${tmpdir}/govulncheck_src.json"
-  else
-    echo '{"findings":0,"vuln_ids":[]}' > "${tmpdir}/govulncheck_src.json"
+    govulncheck_src_ids="$(summary_extract_govulncheck "${src_scan_dir}/govulncheck.vuln.json" | jq -c '.vuln_ids')"
+    summary_extract_govulncheck_findings "${src_scan_dir}/govulncheck.vuln.json" >> "$govulncheck_findings_ndjson"
   fi
 
   # artifact govulncheck (merge across platforms)
@@ -194,26 +285,32 @@ summary_collect_component_vulns() {
       local this_ids
       this_ids="$(summary_extract_govulncheck "$f" | jq -c '.vuln_ids')"
       govulncheck_art_ids="$(jq -s '.[0] + .[1] | unique' <<<"$govulncheck_art_ids"$'\n'"$this_ids")"
+      summary_extract_govulncheck_findings "$f" >> "$govulncheck_findings_ndjson"
     done < <(find "$art_scan_dir" -maxdepth 1 -type f -name '*.govulncheck.vuln.json' | LC_ALL=C sort)
   fi
 
   # merge govulncheck source + artifact IDs
-  local govulncheck_src_ids govulncheck_all_ids govulncheck_summary
-  govulncheck_src_ids="$(jq -c '.vuln_ids' "${tmpdir}/govulncheck_src.json")"
+  local govulncheck_all_ids govulncheck_summary
   govulncheck_all_ids="$(jq -s '.[0] + .[1] | unique' <<<"$govulncheck_src_ids"$'\n'"$govulncheck_art_ids")"
   govulncheck_summary="$(jq -n --argjson ids "$govulncheck_all_ids" '{findings: ($ids|length), vuln_ids: $ids}')"
-  
-  # cross-scanner dedup (trivy + grype only, govulncheck doesnt use CVE IDs)
+
+  # Cross-scanner dedup (trivy + grype only, govulncheck uses different ID space)
   local merged_counts worst_sev
   merged_counts="$(summary_merge_and_count "$all_vulns")"
   worst_sev="$(summary_worst_severity "$merged_counts")"
 
-  # gate evaluation
+  # Merge all findings into a deduplicated array (trivy + grype + govulncheck)
+  local all_findings_ndjson="${tmpdir}/all_findings.ndjson"
+  cat "$all_vulns" "$govulncheck_findings_ndjson" > "$all_findings_ndjson"
+  local findings_array
+  findings_array="$(summary_merge_findings "$all_findings_ndjson")"
+
+  # Gate evaluation
   local gate_threshold gate_result
-  gate_threshold="high"
+  gate_threshold="high"  # from policy defaults
   gate_result="pass"
 
-  local crit high
+  local crit high govulncheck_findings
   crit="$(jq -r '.critical' <<<"$merged_counts")"
   high="$(jq -r '.high' <<<"$merged_counts")"
   govulncheck_findings="$(jq -r '.findings' <<<"$govulncheck_summary")"
@@ -222,19 +319,11 @@ summary_collect_component_vulns() {
     gate_result="fail"
   fi
 
-  # build scanners_used array
+  # Build the scanners_used array based on report existence, not findings
   local scanners_used='[]'
-  if [[ -n "$(find "${DIST}/${component}/scan" -name '*.trivy.vuln.json' -print -quit 2>/dev/null)" ]] \
-     || [[ -n "$(find "${src_scan_dir}" -name 'trivy.*' -print -quit 2>/dev/null)" ]]; then
-    scanners_used="$(jq '. + ["trivy"]' <<<"$scanners_used")"
-  fi
-  if [[ -n "$(find "${DIST}/${component}/scan" -name '*.grype.vuln.json' -print -quit 2>/dev/null)" ]] \
-     || [[ -n "$(find "${src_scan_dir}" -name 'grype.*' -print -quit 2>/dev/null)" ]]; then
-    scanners_used="$(jq '. + ["grype"]' <<<"$scanners_used")"
-  fi
-  if [[ -n "$(find "${DIST}/${component}/scan" -name '*govulncheck*' -print -quit 2>/dev/null)" ]]; then
-    scanners_used="$(jq '. + ["govulncheck"]' <<<"$scanners_used")"
-  fi
+  [[ "$has_trivy" == "true" ]] && scanners_used="$(jq '. + ["trivy"]' <<<"$scanners_used")"
+  [[ "$has_grype" == "true" ]] && scanners_used="$(jq '. + ["grype"]' <<<"$scanners_used")"
+  [[ "$has_govulncheck" == "true" ]] && scanners_used="$(jq '. + ["govulncheck"]' <<<"$scanners_used")"
 
   # determine scan timestamp from newest scan report mtime
   local scanned_at
@@ -250,6 +339,7 @@ summary_collect_component_vulns() {
     --argjson by_trivy "$trivy_counts" \
     --argjson by_grype "$grype_counts" \
     --argjson govulncheck "$govulncheck_summary" \
+    --argjson findings "$findings_array" \
     --arg worst_severity "$worst_sev" \
     --arg gate_threshold "$gate_threshold" \
     --arg gate_result "$gate_result" \
@@ -266,6 +356,7 @@ summary_collect_component_vulns() {
         grype: $by_grype,
         govulncheck: $govulncheck
       },
+      findings: $findings,
       worst_severity: $worst_severity,
       gate_threshold: $gate_threshold,
       gate_result: $gate_result
@@ -275,7 +366,6 @@ summary_collect_component_vulns() {
   rm -rf "$tmpdir"
 }
 
-# sbom summary
 summary_collect_sbom_info() {
   local component="$1"
 
@@ -340,7 +430,6 @@ summary_collect_sbom_info() {
   )"
 }
 
-# license summary
 summary_collect_license_info() {
   local component="$1"
 
@@ -386,7 +475,6 @@ summary_collect_license_info() {
   )"
 }
 
-# signing summary
 summary_collect_signing_info() {
   local component="$1"
 
@@ -412,6 +500,7 @@ summary_collect_signing_info() {
     inventory_signed=true
   fi
 
+  # release.json.sig is created after summary generation, so we don't check it here
   _SIGNING_SUMMARY="$(jq -n \
     --arg method "$method" \
     --arg key_ref "$key_ref" \
@@ -428,7 +517,6 @@ summary_collect_signing_info() {
   )"
 }
 
-# evidence completeness summary - which types of evidence are present for the component
 summary_collect_evidence_completeness() {
   local component="$1"
   local d="${DIST}/${component}"
@@ -466,7 +554,7 @@ summary_collect_evidence_completeness() {
   )"
 }
 
-# main summary generator - collects all the above info and assembles into a single summary json blob per-component
+# ─── Main summary generator ─────────────────────────────────────────
 
 generate_component_release_summary() {
   local component="${1:?component required}"
@@ -489,7 +577,7 @@ generate_component_release_summary() {
   local generated_at
   generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-  # assemble final summary for release.json inclusion
+  # Assemble final summary
   jq -n \
     --arg schema "phxi.release.summary.v1" \
     --arg generated_at "$generated_at" \
