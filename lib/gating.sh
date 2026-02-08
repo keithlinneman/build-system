@@ -1,21 +1,5 @@
 # shellcheck shell=bash
 
-gate_vuln_release()
-{
-  rc=$1
-  if [[ "$rc" == "0" ]];then
-    return
-  fi
-  if [[ "${ALLOW_INSECURE_VULN_BUILD:-false}" != "true" ]]; then
-    die "Refusing to publish - working tree contains vulnerabilities. Set ALLOW_INSECURE_VULN_BUILD=true to override"
-    exit 1
-  else
-   printf "[-]\n[-] ###########################\n"
-   log "[-] WARNING: continuing vulnerable build due to ALLOW_INSECURE_VULN_BUILD=true override"
-   printf "[-] ###########################\n[-]\n"
-  fi
-}
-
 gate_dirty_source_repo() {
   local track="$1"
 
@@ -157,6 +141,58 @@ gate_license_compliance() {
   else
     log "[-] ###############################"
     log "[-] WARNING: license compliance gate failed (enforcement=${enforcement}, continuing)"
+    log "[-] ###############################"
+    return 0
+  fi
+}
+
+# Gate on vulnerability summary from release.json
+# Called after summary generation, reads gate_result from the summary block
+gate_vulnerability_compliance() {
+  local release_json="$1"
+  local enforcement="${2:-warn}"  # "enforce" or "warn"
+
+  [[ -f "$release_json" ]] || die "gate_vulnerability_compliance: release.json not found: $release_json"
+
+  local gate_result worst_sev total
+  gate_result="$(jq -r '.summary.vulnerabilities.gate_result // "unknown"' "$release_json")"
+  worst_sev="$(jq -r '.summary.vulnerabilities.worst_severity // "none"' "$release_json")"
+  total="$(jq -r '.summary.vulnerabilities.total // 0' "$release_json")"
+
+  if [[ "$gate_result" == "pass" ]]; then
+    log "==> (gate) vulnerability compliance: PASS (total=${total} worst=${worst_sev})"
+    return 0
+  fi
+
+  # build failure details from findings
+  local findings_summary
+  findings_summary="$(jq -r '
+    [.summary.vulnerabilities.findings[]?
+     | select(.severity == "critical" or .severity == "high")
+     | "\(.id) (\(.severity)) in \(.package // "unknown")@\(.installed_version // "?") fix=\(.fixed_version // "none")"
+    ] | join(", ")
+  ' "$release_json")"
+
+  local govulncheck_count
+  govulncheck_count="$(jq -r '.summary.vulnerabilities.by_scanner.govulncheck.findings // 0' "$release_json")"
+
+  log "[-] (gate) vulnerability compliance: FAIL"
+  log "[-] (gate)   worst_severity=${worst_sev} total=${total}"
+  [[ -n "$findings_summary" ]] && log "[-] (gate)   blocking findings: ${findings_summary}"
+  (( govulncheck_count > 0 )) && log "[-] (gate)   govulncheck reachable findings: ${govulncheck_count}"
+
+  if [[ "$enforcement" == "enforce" ]]; then
+    if [[ "${ALLOW_VULNERABLE_RELEASE:-}" == "1" ]]; then
+      log "[-] ###############################"
+      log "[-] WARNING: continuing with vulnerable release due to ALLOW_VULNERABLE_RELEASE=1 override"
+      log "[-] ###############################"
+      sleep 5
+      return 0
+    fi
+    die "Refusing to release - vulnerability gate failed (worst=${worst_sev} total=${total}). Set env ALLOW_VULNERABLE_RELEASE=1 to override"
+  else
+    log "[-] ###############################"
+    log "[-] WARNING: vulnerability gate failed (enforcement=${enforcement}, continuing)"
     log "[-] ###############################"
     return 0
   fi

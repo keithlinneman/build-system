@@ -48,10 +48,12 @@ log "==> (evidence) generating per-component release manifests"
 for component in $( ctx_list_plan_components );do
   # generate release.json manifest for component
   generate_component_release_json "$component" || die "failed to generate release manifest for component=${component}!"
+  # Gate: vulnerability compliance (reads summary from the release.json we just generated)
+  log "==> (release) gating vulnerability compliance for component=${component}"
+  gate_vulnerability_compliance "${DIST}/${component}/release.json" "${RELEASE_TRACK:-stable}"
   # attest release.json to component index
   log "==> (release) attesting release.json to component indexes"
   attest_release_json_to_component_index "$component" || die "failed to attest release.json to component index for component=${component}!"
   # sign the release.json for s3 release flow verification
   sign_release_json_for_component "$component" || die "failed to sign release.json for component=${component}!"
 done
-
