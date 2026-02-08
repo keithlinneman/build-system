@@ -224,12 +224,17 @@ summary_collect_component_vulns() {
 
   # build scanners_used array
   local scanners_used='[]'
-  if [[ -s "$trivy_vulns" ]] || [[ -n "$(find "${art_scan_dir}" -maxdepth 1 -name "${component}.*.trivy.vuln.json" -print -quit 2>/dev/null)" ]]; then
-    scanners_used="$( jq '. + ["trivy"]' <<<"$scanners_used" )"
+  if [[ -n "$(find "${DIST}/${component}/scan" -name '*.trivy.vuln.json' -print -quit 2>/dev/null)" ]] \
+     || [[ -n "$(find "${src_scan_dir}" -name 'trivy.*' -print -quit 2>/dev/null)" ]]; then
+    scanners_used="$(jq '. + ["trivy"]' <<<"$scanners_used")"
   fi
-
-  [[ -s "$grype_vulns" ]] && scanners_used="$(jq '. + ["grype"]' <<<"$scanners_used")"
-  [[ "$(jq -r '.findings' <<<"$govulncheck_summary")" != "0" || -f "${src_scan_dir}/govulncheck.vuln.json" ]] && scanners_used="$(jq '. + ["govulncheck"]' <<<"$scanners_used")"
+  if [[ -n "$(find "${DIST}/${component}/scan" -name '*.grype.vuln.json' -print -quit 2>/dev/null)" ]] \
+     || [[ -n "$(find "${src_scan_dir}" -name 'grype.*' -print -quit 2>/dev/null)" ]]; then
+    scanners_used="$(jq '. + ["grype"]' <<<"$scanners_used")"
+  fi
+  if [[ -n "$(find "${DIST}/${component}/scan" -name '*govulncheck*' -print -quit 2>/dev/null)" ]]; then
+    scanners_used="$(jq '. + ["govulncheck"]' <<<"$scanners_used")"
+  fi
 
   # determine scan timestamp from newest scan report mtime
   local scanned_at
@@ -390,7 +395,6 @@ summary_collect_signing_info() {
   local artifacts_attested=false
   local index_attested=false
   local inventory_signed=false
-  local release_signed=false
 
   # check if artifact attestations exist
   local att_dir="${DIST}/${component}/attestations"
@@ -408,25 +412,18 @@ summary_collect_signing_info() {
     inventory_signed=true
   fi
 
-  # check for release.json signature
-  if [[ -f "${DIST}/${component}/release.json.sig" ]]; then
-    release_signed=true
-  fi
-
   _SIGNING_SUMMARY="$(jq -n \
     --arg method "$method" \
     --arg key_ref "$key_ref" \
     --argjson artifacts_attested "$artifacts_attested" \
     --argjson index_attested "$index_attested" \
     --argjson inventory_signed "$inventory_signed" \
-    --argjson release_signed "$release_signed" \
     '{
       method: $method,
       key_ref: $key_ref,
       artifacts_attested: $artifacts_attested,
       index_attested: $index_attested,
-      inventory_signed: $inventory_signed,
-      release_signed: $release_signed
+      inventory_signed: $inventory_signed
     }'
   )"
 }

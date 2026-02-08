@@ -124,13 +124,14 @@ ctx_build_init() {
   buildcomponents_json="$(printf '%s\n' "${BUILD_COMPONENTS[@]}" | jq -R . | jq -s .)"
   buildplatforms_json="$(printf '%s\n' "${BUILD_PLATFORMS[@]}" | jq -R . | jq -s .)"
 
-  # --- SOURCE git info (app repo) ---
+  # SOURCE git info (app repo)
   local repo_url repo_branch commit commit_short commit_date_raw commit_date commit_tag repo_dirty detached ref
   repo_url="$(git -C "$src_dir" config --get remote.origin.url 2>/dev/null || true)"
   #repo_branch="$(git -C "$src_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  repo_branch="${SOURCE_REPO_REF_RESOLVED:-unknown}"
-  ref="${SOURCE_REPO_REF_REQUESTED:-unknown}"
+  repo_branch="${SOURCE_REPO_REF_RESOLVED:-${GITHUB_REF_NAME:-unknown}}"
+  ref="${SOURCE_REPO_REF_REQUESTED:-${GITHUB_REF:-unknown}}"
   detached="${SOURCE_DETATCHED:-false}"
+
   commit="${SOURCE_REPO_SHA:-$(git -C "$src_dir" rev-parse HEAD 2>/dev/null || true)}"
   commit_short="$(git -C "$src_dir" rev-parse --short=7 HEAD 2>/dev/null || true)"
   commit_date_raw="$(git -C "$src_dir" log -1 --format=%cI 2>/dev/null || true)"
@@ -142,7 +143,7 @@ ctx_build_init() {
   git -C "$src_dir" diff --cached --quiet || repo_dirty=true
   [ -n "$(git -C "$src_dir" ls-files --others --exclude-standard 2>/dev/null || true)" ] && repo_dirty=true
 
-  # --- BUILDER git info (build-system repo) ---
+  # BUILDER git info (build-system repo)
   local buildrepo_url buildrepo_branch buildcommit buildcommit_short buildcommit_date_raw buildcommit_date buildcommit_tag buildrepo_dirty
   buildrepo_url="$(git -C "$builder_dir" config --get remote.origin.url 2>/dev/null || true)"
   buildrepo_branch="$(git -C "$builder_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
@@ -164,6 +165,7 @@ ctx_build_init() {
     release_track="stable"
     base_tag="$commit_tag"
     version="$commit_tag"
+    commits_since_tag="0"
     if [[ "${repo_dirty}" == "true" && "${ALLOW_DIRTY:-false}" != "true" ]]; then
       die "Refusing stable publish - source repo is dirty"
     fi
