@@ -260,7 +260,7 @@ generate_release_policy() {
   # policies
   local policy_schema_version policy_enforcement policy_defaults policy_overrides
   policy_schema_version="phxi.policy.v1"
-  policy_enforcement="${policy_enforcement:-warn}"
+  policy_enforcement="${policy_enforcement:-block}"
 
   # read license policy from app config
   local license_policy
@@ -290,12 +290,12 @@ generate_release_policy() {
           attestation_required: true
         },
         license: {
-          required: false,
+          required: true,
           attestation_required: true,
           formats: ["summary-json"]
         },
         provenance: {
-          required: false,
+          required: true,
           attestation_required: true
         }
       },
