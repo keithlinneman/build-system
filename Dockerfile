@@ -42,8 +42,8 @@ RUN curl -sSL https://github.com/anchore/syft/releases/download/v1.41.2/syft_1.4
     && chmod +x /usr/local/bin/syft
 
 # Install trivy pinned version
-RUN curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.68.2/trivy_0.68.2_Linux-64bit.tar.gz -o /tmp/trivy.tar.gz \
-    && echo "3d933bbc3685f95ec15280f620583d05d97ee3affb66944d14481d5d6d567064  /tmp/trivy.tar.gz" | sha256sum -c - \
+RUN curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-64bit.tar.gz -o /tmp/trivy.tar.gz \
+    && echo "1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75  /tmp/trivy.tar.gz" | sha256sum -c - \
     && tar -xzvf /tmp/trivy.tar.gz -C /usr/local/bin trivy \
     && chmod +x /usr/local/bin/trivy
 
