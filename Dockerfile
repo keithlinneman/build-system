@@ -59,6 +59,12 @@ RUN curl -sSL https://github.com/CycloneDX/cyclonedx-gomod/releases/download/v1.
     && tar -xzvf /tmp/cyclonedx-gomod.tar.gz -C /usr/local/bin cyclonedx-gomod \
     && chmod +x /usr/local/bin/cyclonedx-gomod
 
+# Install golintci-lint pinned version
+RUN curl -sSL https://github.com/golangci/golangci-lint/releases/download/v2.11.3/golangci-lint-2.11.3-linux-amd64.tar.gz -o /tmp/golangci-lint.tar.gz \
+    && echo "87bb8cddbcc825d5778b64e8a91b46c0526b247f4e2f2904dea74ec7450475d1  /tmp/golangci-lint.tar.gz" | sha256sum -c - \
+    && tar -xzvf /tmp/golangci-lint.tar.gz -C /usr/local/bin --strip-components=1 golangci-lint-2.11.3-linux-amd64/golangci-lint \
+    && chmod +x /usr/local/bin/golangci-lint
+
 # Install govulncheck pinned version
 RUN go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
