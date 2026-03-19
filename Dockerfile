@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
     make \
+    gcc \
+    libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install jq pinned version
