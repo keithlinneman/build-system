@@ -32,6 +32,9 @@ scanner_init
 log "==> (evidence) initializing oci environment"
 initialize_oci
 
+log "==> (evidence) initializing cosign environment"
+initialize_cosign
+
 # 1/29/26 - removing repo-wide evidence for now. may re-add and copy into each component as _repo still later
 # Generate repo-wide evidence
 # log "==> (evidence) generating app-wide evidence"

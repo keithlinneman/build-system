@@ -26,6 +26,9 @@ log "==> (release) starting step 40-generate-release"
 log "==> (release) loading build context from ${BUILDCTX_PATH}"
 ctx_export_release_vars
 
+log "==> (evidence) initializing cosign environment"
+initialize_cosign
+
 # # generate_release_json
 # log "==> (release) generating release.json"
 # generate_release_json || die "failed to generate release json!"
