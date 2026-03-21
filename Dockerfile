@@ -27,19 +27,19 @@ RUN curl -sSL https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-a
     && chmod +x /usr/local/bin/jq
 
 # Install oras pinned version
-RUN curl -sSL https://github.com/oras-project/oras/releases/download/v1.3.0/oras_1.3.0_linux_amd64.tar.gz -o /tmp/oras.tar.gz \
-    && echo "6cdc692f929100feb08aa8de584d02f7bcc30ec7d88bc2adc2054d782db57c64  /tmp/oras.tar.gz" | sha256sum -c - \
+RUN curl -sSL https://github.com/oras-project/oras/releases/download/v1.3.1/oras_1.3.1_linux_amd64.tar.gz -o /tmp/oras.tar.gz \
+    && echo "d52c4af76ce6a3ceb8579e51fb751a43ac051cca67f965f973a0b0e897a2bb86  /tmp/oras.tar.gz" | sha256sum -c - \
     && tar -xzvf /tmp/oras.tar.gz -C /usr/local/bin oras \
     && chmod +x /usr/local/bin/oras
 
 # Install cosign pinned version
-RUN curl -sSL https://github.com/sigstore/cosign/releases/download/v3.0.4/cosign-linux-amd64 -o /usr/local/bin/cosign \
-    && echo "10dab2fd2170b5aa0d5c0673a9a2793304960220b314f6a873bf39c2f08287aa /usr/local/bin/cosign" | sha256sum -c - \
+RUN curl -sSL https://github.com/sigstore/cosign/releases/download/v3.0.5/cosign-linux-amd64 -o /usr/local/bin/cosign \
+    && echo "db15cc99e6e4837daabab023742aaddc3841ce57f193d11b7c3e06c8003642b2  /usr/local/bin/cosign" | sha256sum -c - \
     && chmod +x /usr/local/bin/cosign
 
 # Install syft pinned version
-RUN curl -sSL https://github.com/anchore/syft/releases/download/v1.41.2/syft_1.41.2_linux_amd64.tar.gz -o /tmp/syft.tar.gz \
-    && echo "7e0f45251d2a3998d29dfb6575bc662575dd5864c27bdc11625cc369760a17ad  /tmp/syft.tar.gz" | sha256sum -c - \
+RUN curl -sSL https://github.com/anchore/syft/releases/download/v1.42.3/syft_1.42.3_linux_amd64.tar.gz -o /tmp/syft.tar.gz \
+    && echo "0d6be741479eddd2c8644a288990c04f3df0d609bbc1599a005532a9dff63509  /tmp/syft.tar.gz" | sha256sum -c - \
     && tar -xzvf /tmp/syft.tar.gz -C /usr/local/bin syft \
     && chmod +x /usr/local/bin/syft
 
@@ -50,14 +50,14 @@ RUN curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.69.3/tr
     && chmod +x /usr/local/bin/trivy
 
 # Install grype pinned version
-RUN curl -sSL https://github.com/anchore/grype/releases/download/v0.107.1/grype_0.107.1_linux_amd64.tar.gz -o /tmp/grype.tar.gz \
-    && echo "a434ecfd1b3aff9c5a8f9186a57c3c09b34bdbeeeeb00769313568be17af6297  /tmp/grype.tar.gz" | sha256sum -c - \
+RUN curl -sSL https://github.com/anchore/grype/releases/download/v0.110.0/grype_0.110.0_linux_amd64.tar.gz -o /tmp/grype.tar.gz \
+    && echo "aaa98d27d2d7efd9317c6a1ad6d9b15f3e65bab320e7d03bde41e251387bb71c  /tmp/grype.tar.gz" | sha256sum -c - \
     && tar -xzvf /tmp/grype.tar.gz -C /usr/local/bin grype \
     && chmod +x /usr/local/bin/grype
 
 # Install cyclonedx-gomod pinned version
-RUN curl -sSL https://github.com/CycloneDX/cyclonedx-gomod/releases/download/v1.9.0/cyclonedx-gomod_1.9.0_linux_amd64.tar.gz -o /tmp/cyclonedx-gomod.tar.gz \
-    && echo "e6d3b3a409b1c84ccef79ad15f9127d80c430a92d5c4f9e621bc2f0f3ee6d423  /tmp/cyclonedx-gomod.tar.gz" | sha256sum -c - \
+RUN curl -sSL https://github.com/CycloneDX/cyclonedx-gomod/releases/download/v1.10.0/cyclonedx-gomod_1.10.0_linux_amd64.tar.gz -o /tmp/cyclonedx-gomod.tar.gz \
+    && echo "5cce8ae99a5181be6a610ea5ed9ca9d596937cc04dc1a8f6f6b5e462d8c9900e  /tmp/cyclonedx-gomod.tar.gz" | sha256sum -c - \
     && tar -xzvf /tmp/cyclonedx-gomod.tar.gz -C /usr/local/bin cyclonedx-gomod \
     && chmod +x /usr/local/bin/cyclonedx-gomod
 
