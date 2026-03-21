@@ -55,9 +55,9 @@ for component in $( ctx_list_plan_components );do
   log "==> (release) gating vulnerability compliance for component=${component}"
 
   if [ "${RELEASE_TRACK:-stable}" == "stable" ]; then
-    enforce_vulnerability_compliance "enforce"
+    gate_vulnerability_compliance "enforce"
   else
-    enforce_vulnerability_compliance "warn"
+    gate_vulnerability_compliance "warn"
   fi
 
   gate_vulnerability_compliance "${DIST}/${component}/release.json" "${RELEASE_TRACK:-stable}"
