@@ -50,6 +50,13 @@ for component in $( ctx_list_plan_components );do
   generate_component_release_json "$component" || die "failed to generate release manifest for component=${component}!"
   # Gate: vulnerability compliance (reads summary from the release.json we just generated)
   log "==> (release) gating vulnerability compliance for component=${component}"
+
+  if [ "${RELEASE_TRACK:-stable}" == "stable" ]; then
+    enforce_vulnerability_compliance "enforce"
+  else
+    enforce_vulnerability_compliance "warn"
+  fi
+
   gate_vulnerability_compliance "${DIST}/${component}/release.json" "${RELEASE_TRACK:-stable}"
   # attest release.json to component index
   log "==> (release) attesting release.json to component indexes"

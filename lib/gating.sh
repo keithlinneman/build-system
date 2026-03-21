@@ -152,6 +152,10 @@ gate_vulnerability_compliance() {
   local release_json="$1"
   local enforcement="${2:-warn}"  # "enforce" or "warn"
 
+  if [ "${enforcement}" != "enforce" ] && [ "${enforcement}" != "warn" ]; then
+    die "Invalid enforcement level: ${enforcement}. Must be 'enforce' or 'warn'"
+  fi
+
   [[ -f "$release_json" ]] || die "gate_vulnerability_compliance: release.json not found: $release_json"
 
   local gate_result worst_sev total
