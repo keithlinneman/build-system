@@ -55,12 +55,11 @@ for component in $( ctx_list_plan_components );do
   log "==> (release) gating vulnerability compliance for component=${component}"
 
   if [ "${RELEASE_TRACK:-stable}" == "stable" ]; then
-    gate_vulnerability_compliance "enforce"
+    gate_vulnerability_compliance "${DIST}/${component}/release.json" "enforce"
   else
-    gate_vulnerability_compliance "warn"
+    gate_vulnerability_compliance "${DIST}/${component}/release.json" "warn"
   fi
 
-  gate_vulnerability_compliance "${DIST}/${component}/release.json" "${RELEASE_TRACK:-stable}"
   # attest release.json to component index
   log "==> (release) attesting release.json to component indexes"
   attest_release_json_to_component_index "$component" || die "failed to attest release.json to component index for component=${component}!"
