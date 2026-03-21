@@ -1,0 +1,79 @@
+{
+  "mediaType": "application/vnd.dev.sigstore.trustedroot+json;version=0.1",
+  "certificateAuthorities": [
+    {
+      "subject": {
+        "organization": "linnemanlabs.com",
+        "commonName": "LinnemanLabs Fulcio CA"
+      },
+      "uri": "https://fulcio.trust.linnemanlabs.com/",
+      "certChain": {
+        "certificates": [
+          {
+            "rawBytes": "MIICszCCAjigAwIBAgIUPejl/OMAGD6fUePNEBXuDIzPDb8wCgYIKoZIzj0EAwMwOjEZMBcGA1UECgwQbGlubmVtYW5sYWJzLmNvbTEdMBsGA1UEAwwUTGlubmVtYW5MYWJzIFJvb3QgQ0EwHhcNMjYwMzE1MDUzNjEzWhcNMjkwMzE0MDUzNjEzWjA8MRkwFwYDVQQKExBsaW5uZW1hbmxhYnMuY29tMR8wHQYDVQQDExZMaW5uZW1hbkxhYnMgRnVsY2lvIENBMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEWf2+A5M2QbFFssF/46HWjHbWaQ+rhwupgtj35SRzOm0RhWYidlT4VikC9+gCSamYG1hZAe10NmSwObScff0ZJszO6VgbFmdc4+ubVpxAfDaVZVyAlUzCgpEy725Srk6Xo4H8MIH5MBIGA1UdEwEB/wQIMAYBAf8CAQAwDgYDVR0PAQH/BAQDAgIEMBYGA1UdJQEB/wQMMAoGCCsGAQUFBwMDMB0GA1UdDgQWBBQx0UblttU76LOosA43Lpvx5yktADAfBgNVHSMEGDAWgBTiwG/uCi7Nz5hE1HU/MRnrgzJTQTAwBgNVHR4BAf8EJjAkoCIwE4IRLmxpbm5lbWFubGFicy5jb20wC4IJLnBoeGkubmV0MEkGA1UdIARCMEAwPgYKKwYBBAGD/hYBAzAwMC4GCCsGAQUFBwIBFiJodHRwczovL3RydXN0Lmxpbm5lbWFubGFicy5jb20vY3BzMAoGCCqGSM49BAMDA2kAMGYCMQDmTTcezTrtZWoxOReie/Zo3ejk5ynh4SX4FPtk8lCX/Cf/+NbxrO6lnWqb7mc7CP0CMQCuk0Wi6647XVcEHxBSPOpeoPGFd/tsIlN3OagIG5iw7LCqc4E2wksBCGXyNWYX5E0="
+          },
+          {
+            "rawBytes": "MIICkzCCAhqgAwIBAgIUVBcG5gzBrEubm5bb2om+SgvaDmIwCgYIKoZIzj0EAwMwOjEZMBcGA1UECgwQbGlubmVtYW5sYWJzLmNvbTEdMBsGA1UEAwwUTGlubmVtYW5MYWJzIFJvb3QgQ0EwHhcNMjYwMzEzMDgwODM4WhcNMzYwMzEwMDgwODM4WjA6MRkwFwYDVQQKDBBsaW5uZW1hbmxhYnMuY29tMR0wGwYDVQQDDBRMaW5uZW1hbkxhYnMgUm9vdCBDQTB2MBAGByqGSM49AgEGBSuBBAAiA2IABEgNrTNiVVK/cJjn4PhijB0xKC9Za+K73k/22cVZJajp1CTpM+rGvZginlhcA8bss4KOdkXwIlciUDZEze8rC4clmKjjgLdsmkv3cX/E1kBvrh1Lnp0tpNa4gUie3w9t7KOB4DCB3TAPBgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBBjAdBgNVHQ4EFgQU4sBv7gouzc+YRNR1PzEZ64MyU0EwUAYDVR0eAQH/BEYwRKBCMBKCEGxpbm5lbWFubGFicy5jb20wE4IRLmxpbm5lbWFubGFicy5jb20wCoIIcGh4aS5uZXQwC4IJLnBoeGkubmV0MEkGA1UdIARCMEAwPgYKKwYBBAGD/hYBATAwMC4GCCsGAQUFBwIBFiJodHRwczovL3RydXN0Lmxpbm5lbWFubGFicy5jb20vY3BzMAoGCCqGSM49BAMDA2cAMGQCMG3ylhLF/+uTJupUPVgTTLLBwGLCEmZxCC/TyUwvHtRoz46oQe9Lx/quW3ifFtEyzAIwGl9XiFE5sFgxhGWzloO3kSMmilQIwkz75qtpPUG5f3r1MlTPmok/sYqB6xxJ09FX"
+          }
+        ]
+      },
+      "validFor": {
+        "start": "2026-03-15T05:36:13Z"
+      }
+    }
+  ],
+  "ctlogs": [
+    {
+      "baseUrl": "https://tesseract.trust.linnemanlabs.com/",
+      "logId": {
+        "keyId": "HxDAzziQRK3dcS4q1DMKTefciz9jtstdiq4eXxdrCVw="
+      },
+      "publicKey": {
+        "rawBytes": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAES4sJtPlTB/9u/7Hqs4g7AMHdXBI3gkPt5wb+5Ltja+npkCWHW0p0w8iy0L/fy5IpzvDmBFrgtY6mgwJIxQqYPw==",
+        "keyDetails": "PKIX_ECDSA_P256_SHA_256",
+        "validFor": {
+          "start": "2026-03-15T02:47:41Z"
+        }
+      },
+      "hashAlgorithm": "SHA2_256"
+    }
+  ],
+  "tlogs": [
+    {
+      "baseUrl": "https://rekor.trust.linnemanlabs.com/",
+      "logId": {
+        "keyId": "m3PBq6OUJ7sHCQx+e4LmRJ8ZlK91odygq67t7rBkF3M="
+      },
+      "publicKey": {
+        "rawBytes": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE1SxHBR7ri4XRF065eSKV1EIie9opMuw972EIQF/SdJuDm474tiaNsdI3X3h4kr5Gpuicb80yimUL+LoDPocniA==",
+        "keyDetails": "PKIX_ECDSA_P256_SHA_256",
+        "validFor": {
+          "start": "2026-03-09T00:54:35Z"
+        }
+      },
+      "hashAlgorithm": "SHA2_256"
+    }
+  ],
+  "timestampAuthorities": [
+    {
+      "subject": {
+        "organization": "linnemanlabs.com",
+        "commonName": "LinnemanLabs TSA"
+      },
+      "uri": "https://tsa.trust.linnemanlabs.com/",
+      "certChain": {
+        "certificates": [
+          {
+            "rawBytes": "MIICdTCCAfqgAwIBAgIUPejl/OMAGD6fUePNEBXuDIzPDcAwCgYIKoZIzj0EAwMwOjEZMBcGA1UECgwQbGlubmVtYW5sYWJzLmNvbTEdMBsGA1UEAwwUTGlubmVtYW5MYWJzIFJvb3QgQ0EwHhcNMjYwMzE1MDUzNjIwWhcNMjkwMzE0MDUzNjIwWjA2MRkwFwYDVQQKExBsaW5uZW1hbmxhYnMuY29tMRkwFwYDVQQDExBMaW5uZW1hbkxhYnMgVFNBMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEBH0Vm4BWv6YQCTmtm+xRYlBVTvimOu5SugAJiT6w1zrt7EI85IQ2eCjBeGQELcf4biGrb7zjiw3vX7EPF1ZMeETf8hBcLM9Lr+veWnC0UnQ4vYvLvwhv2TXZxesiSG8bo4HEMIHBMAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgeAMBYGA1UdJQEB/wQMMAoGCCsGAQUFBwMIMB0GA1UdDgQWBBSodnZgJOcOlyN0i9Gk+IMVLA1HSDAfBgNVHSMEGDAWgBTiwG/uCi7Nz5hE1HU/MRnrgzJTQTBJBgNVHSAEQjBAMD4GCisGAQQBg/4WAQQwMDAuBggrBgEFBQcCARYiaHR0cHM6Ly90cnVzdC5saW5uZW1hbmxhYnMuY29tL2NwczAKBggqhkjOPQQDAwNpADBmAjEAtWsisYgDkmqeTXgDlAoaHtdeiS7BCvd8jJSWRz7/pOttYCJGQQctfxEVd+H/2WwyAjEA5HsDOpSloro0WU9DjxWEAlqufSer9MxPBVf0qg7rdiSav8WDvN7Z1+g66bvGGqn4"
+          },
+          {
+            "rawBytes": "MIICkzCCAhqgAwIBAgIUVBcG5gzBrEubm5bb2om+SgvaDmIwCgYIKoZIzj0EAwMwOjEZMBcGA1UECgwQbGlubmVtYW5sYWJzLmNvbTEdMBsGA1UEAwwUTGlubmVtYW5MYWJzIFJvb3QgQ0EwHhcNMjYwMzEzMDgwODM4WhcNMzYwMzEwMDgwODM4WjA6MRkwFwYDVQQKDBBsaW5uZW1hbmxhYnMuY29tMR0wGwYDVQQDDBRMaW5uZW1hbkxhYnMgUm9vdCBDQTB2MBAGByqGSM49AgEGBSuBBAAiA2IABEgNrTNiVVK/cJjn4PhijB0xKC9Za+K73k/22cVZJajp1CTpM+rGvZginlhcA8bss4KOdkXwIlciUDZEze8rC4clmKjjgLdsmkv3cX/E1kBvrh1Lnp0tpNa4gUie3w9t7KOB4DCB3TAPBgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBBjAdBgNVHQ4EFgQU4sBv7gouzc+YRNR1PzEZ64MyU0EwUAYDVR0eAQH/BEYwRKBCMBKCEGxpbm5lbWFubGFicy5jb20wE4IRLmxpbm5lbWFubGFicy5jb20wCoIIcGh4aS5uZXQwC4IJLnBoeGkubmV0MEkGA1UdIARCMEAwPgYKKwYBBAGD/hYBATAwMC4GCCsGAQUFBwIBFiJodHRwczovL3RydXN0Lmxpbm5lbWFubGFicy5jb20vY3BzMAoGCCqGSM49BAMDA2cAMGQCMG3ylhLF/+uTJupUPVgTTLLBwGLCEmZxCC/TyUwvHtRoz46oQe9Lx/quW3ifFtEyzAIwGl9XiFE5sFgxhGWzloO3kSMmilQIwkz75qtpPUG5f3r1MlTPmok/sYqB6xxJ09FX"
+          }
+        ]
+      },
+      "validFor": {
+        "start": "2026-03-15T05:36:20Z"
+      }
+    }
+  ]
+}

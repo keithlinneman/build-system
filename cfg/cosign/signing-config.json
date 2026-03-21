@@ -1,0 +1,39 @@
+{
+  "mediaType": "application/vnd.dev.sigstore.signingconfig.v0.2+json",
+  "caUrls": [
+    {
+      "url": "https://fulcio.trust.linnemanlabs.com",
+      "majorApiVersion": 1,
+      "validFor": {
+        "start": "2026-03-09T00:00:00Z"
+      },
+      "operator": "linnemanlabs.com"
+    }
+  ],
+  "rekorTlogUrls": [
+    {
+      "url": "https://rekor.trust.linnemanlabs.com/",
+      "majorApiVersion": 2,
+      "validFor": {
+        "start": "2026-03-09T00:00:00Z"
+      },
+      "operator": "linnemanlabs.com"
+    }
+  ],
+  "tsaUrls": [
+    {
+      "url": "https://tsa.trust.linnemanlabs.com/api/v1/timestamp",
+      "majorApiVersion": 1,
+      "validFor": {
+        "start": "2026-03-09T00:00:00Z"
+      },
+      "operator": "linnemanlabs.com"
+    }
+  ],
+  "rekorTlogConfig": {
+    "selector": "ALL"
+  },
+  "tsaConfig": {
+    "selector": "ANY"
+  }
+}
