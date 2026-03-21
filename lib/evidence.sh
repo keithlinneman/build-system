@@ -62,13 +62,14 @@ evidence_content_type_for_sbom_path() {
 }
 
 evidence_predicate_type_for_scan() {
-  # args: scanner kind
-  local scanner="$1" kind="${2:-vuln}"
+  local scanner="$1" kind="${2:-vuln}" format="${3:-json}"
+  local suffix=""
+  [[ "$format" != "json" ]] && suffix="/${format}"
   case "$scanner" in
-    govulncheck) echo "${PRED_VULN_GOVULNCHECK:?}" ;;
-    grype)       echo "${PRED_VULN_GRYPE:?}" ;;
-    trivy)       echo "${PRED_VULN_TRIVY:?}" ;;
-    *)           echo "https://phxi.net/attestations/${scanner}/${kind}/v1" ;;
+    govulncheck) echo "${PRED_VULN_GOVULNCHECK:?}${suffix}" ;;
+    grype)       echo "${PRED_VULN_GRYPE:?}${suffix}" ;;
+    trivy)       echo "${PRED_VULN_TRIVY:?}${suffix}" ;;
+    *)           echo "https://phxi.net/attestations/${scanner}/${kind}/v1${suffix}" ;;
   esac
 }
 
@@ -1230,7 +1231,8 @@ evidence_oci_attest_component_index_scans() {
     format="$(jq -r '.format' <<<"$it")"
 
     local pred_type
-    pred_type="$(evidence_predicate_type_for_scan "$scanner" "$kind")"
+    pred_type="$(evidence_predicate_type_for_scan "$scanner" "$kind" "$format")"
+
     ct="$(evidence_report_media_type_for_format "$format")"
     # abs="${DIST}/${rel}"
 
@@ -1251,7 +1253,7 @@ evidence_oci_attest_component_artifact_scan_reports() {
     kind="$(jq -r '.kind' <<<"$it")"
     format="$(jq -r '.format' <<<"$it")"
 
-    pred_type="$(evidence_predicate_type_for_scan "$scanner" "$kind")"
+    pred_type="$(evidence_predicate_type_for_scan "$scanner" "$kind" "$format")"
     ct="$(evidence_report_media_type_for_format "$format")"
 
     log "==> (attest) component=${component} artifact=${pkey} <- ${rel} (scanner=${scanner} format=${format})"
@@ -1852,7 +1854,8 @@ evidence_local_attest_component_platform() {
     rel="$(jq -r '.path' <<<"$it")"
     scanner="$(jq -r '.scanner' <<<"$it")"
     kind="$(jq -r '.kind' <<<"$it")"
-    pred_type="$(evidence_predicate_type_for_scan "$scanner" "$kind")"
+    format="$(jq -r '.format' <<<"$it")"
+    pred_type="$(evidence_predicate_type_for_scan "$scanner" "$kind" "$format")"
     pred_abs="$(dist_abspath "$rel")"
 
     log "==> (local-attest) artifact scan: ${rel} -> binary ${platform_suffix}"
@@ -1894,7 +1897,8 @@ evidence_local_attest_component_platform() {
     rel="$(jq -r '.path' <<<"$it")"
     scanner="$(jq -r '.scanner' <<<"$it")"
     kind="$(jq -r '.kind' <<<"$it")"
-    pred_type="$(evidence_predicate_type_for_scan "$scanner" "$kind")"
+    format="$(jq -r '.format' <<<"$it")"
+    pred_type="$(evidence_predicate_type_for_scan "$scanner" "$kind" "$format")"
     pred_abs="$(dist_abspath "$rel")"
     basename="$(basename "$rel")"
     bundle_out="${DIST}/${component}/attestations/scan/source/${basename}.${platform_suffix}.intoto.v1.sigstore.json"
