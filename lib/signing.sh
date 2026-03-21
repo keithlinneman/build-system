@@ -4,35 +4,35 @@ sign_file()
 {
   # Generate cosign files
   export AWS_SDK_LOAD_CONFIG=1
-  export COSIGN_REKOR_URL=""
+  SIGNING_CONFIG_PATH="${SCRIPT_DIR}/../cfg/cosign/signing-config.json"
+  TRUSTED_ROOT_PATH="${SCRIPT_DIR}/../cfg/cosign/trusted_root.json"
 
-  #log "==> (sign) getting env name from aws ssm param"
-  #ENV="$(aws --profile "${AWS_BASE_PROFILE}" ssm get-parameter --name "/platform/env/name" --query Parameter.Value --output text)"
-
-  #log "==> (sign) getting cosign kms url from aws ssm param"
-  #SIGNER_URI="$(aws --profile "${AWS_BASE_PROFILE}" ssm get-parameter --name "/platform/signing/${ENV}/cosign/signer" --query Parameter.Value --output text)"
-  #log "==> using kms signer url $SIGNER_URI"
-
-  local file bundle
+  local file kms_bundle keyless_bundle
   file="$1"
-  bundle="${file}.bundle.sigstore.json"
+  kms_bundle="${file}.kms.bundle.sigstore.json"
+  keyless_bundle="${file}.keyless.bundle.sigstore.json"
 
   [[ -f "$file" ]] || die "sign_file: file to sign not found: $file"
   [[ -n "$SIGNER_URI" ]] || die "sign_file: SIGNER_URI not set"
 
-  # using subshell to separate env vars/creds that cosign relies on cleanly
+  # generate KMS bundle using subshell to separate env vars/creds that cosign uses for AWS cleanly
   (
     # intentionally doing this in a subshell, suppress shellcheck subshell warnings
     # shellcheck disable=SC2030
     # todo: should get region from signer uri or iam role and think about how we are going to manage multi-region signing/deploys
     AWS_REGION=us-east-2 AWS_DEFAULT_REGION=us-east-2
 
-    log "==> (sign) signing file ${file} with cosign bundle ${bundle}"
-    # not using rekor/sigstore at all for now - offline signing using kms key
-    if ! err="$( cosign_with_signer_aws sign-blob --yes --key "$SIGNER_URI" --bundle "${bundle}" "$file" 2>&1 >/dev/null )"; then
-      die "ERROR: cosign sign-blob failed: $err"
+    log "==> (sign) signing file ${file} using KMS with cosign bundle ${kms_bundle}"
+    if ! err="$( cosign_with_signer_aws sign-blob --yes --key="$SIGNER_URI" --bundle "${kms_bundle}" --signing-config="$SIGNING_CONFIG_PATH" --trusted-root="$TRUSTED_ROOT_PATH" "$file" 2>&1 >/dev/null )"; then
+      die "ERROR: cosign kms sign-blob failed: $err"
     fi
   )
+
+  # generate keyless bundle using fulcio for our dual-signing strategy
+  if ! err="$( cosign sign-blob --yes --bundle "${keyless_bundle}" --signing-config="$SIGNING_CONFIG_PATH" --trusted-root="$TRUSTED_ROOT_PATH" "$file" 2>&1 >/dev/null )"; then
+    die "ERROR: cosign keyless sign-blob failed: $err"
+  fi
+
 }
 
 sign_release_json_for_component() {
@@ -235,7 +235,7 @@ cosign_with_signer_aws() {
   log "==> (signing) running cosign with AWS_REGION=${region}"
   # intentionally calling this from a subshell, suppress shellcheck subshell warnings
   # shellcheck disable=SC2030 disable=SC2031
-  AWS_REGION="$region" AWS_DEFAULT_REGION="$region" cosign "$@" --signing-config <(printf '{"mediaType":"application/vnd.dev.sigstore.signingconfig.v0.2+json"}')
+  AWS_REGION="$region" AWS_DEFAULT_REGION="$region" cosign "$@" --signing-config "${SCRIPT_DIR}/../cfg/cosign/signing-config.json"
 }
 
 oci_fetch_attestation_dsse() {
