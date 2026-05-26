@@ -53,13 +53,11 @@
         "rawBytes": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAES4sJtPlTB/9u/7Hqs4g7AMHdXBI3gkPt5wb+5Ltja+npkCWHW0p0w8iy0L/fy5IpzvDmBFrgtY6mgwJIxQqYPw==",
         "keyDetails": "PKIX_ECDSA_P256_SHA_256",
         "validFor": {
-          "start": "2026-03-15T02:47:41Z"
+          "start": "2026-03-15T02:47:41Z",
+          "end": "2026-05-24T18:43:50Z"
         }
       },
-      "hashAlgorithm": "SHA2_256",
-      "validFor": {
-        "end": "2026-05-24T18:43:50Z"
-      }
+      "hashAlgorithm": "SHA2_256"
     },
     {
       "baseUrl": "https://tesseract.trust.linnemanlabs.com/",
@@ -86,13 +84,11 @@
         "rawBytes": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE1SxHBR7ri4XRF065eSKV1EIie9opMuw972EIQF/SdJuDm474tiaNsdI3X3h4kr5Gpuicb80yimUL+LoDPocniA==",
         "keyDetails": "PKIX_ECDSA_P256_SHA_256",
         "validFor": {
-          "start": "2026-03-09T00:54:35Z"
+          "start": "2026-03-09T00:54:35Z",
+          "end": "2026-05-24T18:20:14Z"
         }
       },
-      "hashAlgorithm": "SHA2_256",
-      "validFor": {
-        "end": "2026-05-24T18:20:14Z"
-      }
+      "hashAlgorithm": "SHA2_256"
     },
     {
       "baseUrl": "https://rekor.trust.linnemanlabs.com/",
