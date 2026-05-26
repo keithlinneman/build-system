@@ -184,11 +184,14 @@ cosign_attest_predicate() {
     | jq -r '.referrers[]?.digest // empty' \
     | LC_ALL=C sort -u)"
 
+#COMEBACK TODO FFFFFFFFF
   # Attest (referrers model)
   cosign_with_signer_aws attest --yes \
-    --key "${SIGNER_URI}" \
-    --predicate "${predicate_path}" \
-    --type "${predicate_type}" \
+    --key="${SIGNER_URI}" \
+    --predicate="${predicate_path}" \
+    --type="${predicate_type}" \
+    --signing-config="$COSIGN_SIGNING_CONFIG_PATH" \
+    --trusted-root="$COSIGN_TRUSTED_ROOT_PATH" \
     "${subject}" >/dev/null
 
   # Get list of referrers after
