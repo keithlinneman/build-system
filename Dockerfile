@@ -1,7 +1,7 @@
 # pull in aws cli v2 pinned version
-FROM amazon/aws-cli:2.33.8 AS awscli
+FROM amazon/aws-cli:2.34.53 AS awscli
 # pull in golang pinned version
-FROM golang:1.25.8-bookworm AS golang
+FROM golang:1.25.10-bookworm AS golang
 # Using minimal debian for now, pulling latest for build env
 FROM debian:bookworm-slim
 
@@ -27,19 +27,19 @@ RUN curl -sSL https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-a
     && chmod +x /usr/local/bin/jq
 
 # Install oras pinned version
-RUN curl -sSL https://github.com/oras-project/oras/releases/download/v1.3.1/oras_1.3.1_linux_amd64.tar.gz -o /tmp/oras.tar.gz \
-    && echo "d52c4af76ce6a3ceb8579e51fb751a43ac051cca67f965f973a0b0e897a2bb86  /tmp/oras.tar.gz" | sha256sum -c - \
+RUN curl -sSL https://github.com/oras-project/oras/releases/download/v1.3.2/oras_1.3.2_linux_amd64.tar.gz -o /tmp/oras.tar.gz \
+    && echo "9229ccc6d17bb282039ad4a69abb16dcb887a5bce567c075d731d9b3c7ad8eaf  /tmp/oras.tar.gz" | sha256sum -c - \
     && tar -xzvf /tmp/oras.tar.gz -C /usr/local/bin oras \
     && chmod +x /usr/local/bin/oras
 
 # Install cosign pinned version
-RUN curl -sSL https://github.com/sigstore/cosign/releases/download/v3.0.5/cosign-linux-amd64 -o /usr/local/bin/cosign \
-    && echo "db15cc99e6e4837daabab023742aaddc3841ce57f193d11b7c3e06c8003642b2  /usr/local/bin/cosign" | sha256sum -c - \
+RUN curl -sSL https://github.com/sigstore/cosign/releases/download/v3.0.6/cosign-linux-amd64 -o /usr/local/bin/cosign \
+    && echo "c956e5dfcac53d52bcf058360d579472f0c1d2d9b69f55209e256fe7783f4c74  /usr/local/bin/cosign" | sha256sum -c - \
     && chmod +x /usr/local/bin/cosign
 
 # Install syft pinned version
-RUN curl -sSL https://github.com/anchore/syft/releases/download/v1.42.3/syft_1.42.3_linux_amd64.tar.gz -o /tmp/syft.tar.gz \
-    && echo "0d6be741479eddd2c8644a288990c04f3df0d609bbc1599a005532a9dff63509  /tmp/syft.tar.gz" | sha256sum -c - \
+RUN curl -sSL https://github.com/anchore/syft/releases/download/v1.44.0/syft_1.44.0_linux_amd64.tar.gz -o /tmp/syft.tar.gz \
+    && echo "0e91737aee2b5baf1d255b959630194a302335d848ff97bb07921eb6205b5f5a  /tmp/syft.tar.gz" | sha256sum -c - \
     && tar -xzvf /tmp/syft.tar.gz -C /usr/local/bin syft \
     && chmod +x /usr/local/bin/syft
 
@@ -50,8 +50,8 @@ RUN curl -sSL https://github.com/aquasecurity/trivy/releases/download/v0.69.3/tr
     && chmod +x /usr/local/bin/trivy
 
 # Install grype pinned version
-RUN curl -sSL https://github.com/anchore/grype/releases/download/v0.110.0/grype_0.110.0_linux_amd64.tar.gz -o /tmp/grype.tar.gz \
-    && echo "aaa98d27d2d7efd9317c6a1ad6d9b15f3e65bab320e7d03bde41e251387bb71c  /tmp/grype.tar.gz" | sha256sum -c - \
+RUN curl -sSL https://github.com/anchore/grype/releases/download/v0.112.0/grype_0.112.0_linux_amd64.tar.gz -o /tmp/grype.tar.gz \
+    && echo "acb14a030010fe9bdb9594b4ae108d9d14ef2f926d936aa0916dc62c89c058ea  /tmp/grype.tar.gz" | sha256sum -c - \
     && tar -xzvf /tmp/grype.tar.gz -C /usr/local/bin grype \
     && chmod +x /usr/local/bin/grype
 
@@ -62,9 +62,9 @@ RUN curl -sSL https://github.com/CycloneDX/cyclonedx-gomod/releases/download/v1.
     && chmod +x /usr/local/bin/cyclonedx-gomod
 
 # Install golintci-lint pinned version
-RUN curl -sSL https://github.com/golangci/golangci-lint/releases/download/v2.11.3/golangci-lint-2.11.3-linux-amd64.tar.gz -o /tmp/golangci-lint.tar.gz \
-    && echo "87bb8cddbcc825d5778b64e8a91b46c0526b247f4e2f2904dea74ec7450475d1  /tmp/golangci-lint.tar.gz" | sha256sum -c - \
-    && tar -xzvf /tmp/golangci-lint.tar.gz -C /usr/local/bin --strip-components=1 golangci-lint-2.11.3-linux-amd64/golangci-lint \
+RUN curl -sSL https://github.com/golangci/golangci-lint/releases/download/v2.12.2/golangci-lint-2.12.2-linux-amd64.tar.gz -o /tmp/golangci-lint.tar.gz \
+    && echo "8df580d2670fed8fa984aac0507099af8df275e665215f5c7a2ae3943893a553  /tmp/golangci-lint.tar.gz" | sha256sum -c - \
+    && tar -xzvf /tmp/golangci-lint.tar.gz -C /usr/local/bin --strip-components=1 golangci-lint-2.12.2-linux-amd64/golangci-lint \
     && chmod +x /usr/local/bin/golangci-lint
 
 # Install govulncheck pinned version
