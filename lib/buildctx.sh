@@ -104,10 +104,19 @@ ctx_build_init() {
 
   log "==> (init) generating values for build context file"
 
-  local build_epoch build_date buildhost
+  local build_epoch build_date build_host
   build_epoch="$(date +%s)"
   build_date="$(date -d @"${build_epoch}" -u +%Y-%m-%dT%H:%M:%SZ)"
-  buildhost="$(hostname)"
+
+  # Build environment info
+  build_time="$( date -u +"%Y-%m-%dT%H:%M:%SZ" )"
+  build_system="github-actions"
+  build_actor="${GITHUB_ACTOR:-unknown}"
+  build_identity="$( aws sts get-caller-identity --query Arn --output text 2>/dev/null || echo "unknown" )"
+  build_host="$( hostname -f 2>/dev/null || hostname )"
+  build_user="${USER:-unknown}"
+  build_run_id="${GITHUB_RUN_ID:-unknown}"
+  build_run_url="${GITHUB_RUN_ID:+https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}}"
 
   ORIGINAL_ARGS=("$@")
   redacted_args=()
@@ -222,7 +231,14 @@ ctx_build_init() {
     --argjson buildrepo_dirty "$buildrepo_dirty" \
     --argjson buildcomponents "$buildcomponents_json" \
     --argjson buildplatforms "$buildplatforms_json" \
-    --arg buildhost "$buildhost" \
+    --arg build_system "$build_system" \
+    --arg build_time "$build_time" \
+    --arg build_host "$build_host" \
+    --arg build_actor "$build_actor" \
+    --arg build_identity "$build_identity" \
+    --arg build_user "$build_user" \
+    --arg build_run_id "$build_run_id" \
+    --arg build_run_url "$build_run_url" \
     --arg buildscript "$buildscript" \
     --arg buildscript_sha256 "$buildscript_sha256" \
     --arg buildscriptargs_sha256 "$buildscriptargs_sha256" \
@@ -260,7 +276,14 @@ ctx_build_init() {
         commit_date: $buildcommit_date,
         tag: ($buildcommit_tag | select(length>0) // null),
         dirty: $buildrepo_dirty,
-        host: $buildhost,
+        host: $build_host,
+        system: $build_system,
+        timestamp: $build_time,
+        actor: $build_actor,
+        builder_identity: $build_identity,
+        user: $build_user,
+        run_id: $build_run_id,
+        run_url: $build_run_url,
         script: $buildscript,
         script_sha256: $buildscript_sha256,
         script_args: (if ($buildscriptargs_json|length)>0 then $buildscriptargs_json else null end),
