@@ -104,7 +104,7 @@ release_min_source_json() {
 
 release_min_builder_json() {
   local ctx_abs="${1:?buildctx abs required}"
-  jq -c '.builder | {repo, branch, commit, commit_short, commit_date, dirty}' "$ctx_abs"
+  jq -c '.builder | {system, host, timestamp, actor, builder_identity, user, run_id, run_url, repo, branch, commit, commit_short, commit_date, dirty}' "$ctx_abs"
 }
 
 generate_component_release_json() {
