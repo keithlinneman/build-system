@@ -175,7 +175,9 @@ generate_component_inventory_json() {
 
   # oras tooling
   local oras_ver
-  oras_ver="$( oras version  | grep ^Version | awk '{ print $NF }' )"
+  oras_ver="$( oras version | grep ^Version | awk '{ print $NF }' )"
+  oras_bin="$( which --skip-functions --skip-alias oras )"
+  oras_sha256="$( sha256sum "${oras_bin}" | awk '{ print $1 }' )"
 
   # gather metadata
   #local app release_id created_at
@@ -197,12 +199,20 @@ generate_component_inventory_json() {
 
   source="$( ctx_get .source )"
   go_ver="$( go version | awk '{print $3}' || true)"
+  go_bin="$( which --skip-functions --skip-alias go )"
+  go_sha256="$( sha256sum "${go_bin}" | awk '{ print $1 }' )"
   cosign_ver="$( cosign version --json=true | jq -r .gitVersion || true )"
+  cosign_bin="$( which --skip-functions --skip-alias cosign )"
+  cosign_sha256="$( sha256sum "${cosign_bin}" | awk '{ print $1 }' )"
   grype_ver="$( grype version -o json | jq -r .version )"
+  grype_bin="$( which --skip-functions --skip-alias grype )"
+  grype_sha256="$( sha256sum "${grype_bin}" | awk '{ print $1 }' )"
   grype_db_source="$( grype db status -o json | jq -r .from )"
   grype_db_upstream_modified_at="$( grype db status -o json | jq .from | awk -F '_' '{ print $3 }' )"
   grype_db_checked_at="$( grype db status -o json | jq -r .built )"
   trivy_ver="$( trivy version -f json | jq -r .Version )"
+  trivy_bin="$( which --skip-functions --skip-alias trivy )"
+  trivy_sha256="$( sha256sum "${trivy_bin}" | awk '{ print $1 }' )"
   trivy_db_source="mirror.gcr.io/aquasec/trivy-db:2"
   trivy_db_upstream_modified_at_raw="$( trivy version -f json | jq -r .VulnerabilityDB.UpdatedAt )"
   trivy_db_upstream_modified_at="$( date -d "${trivy_db_upstream_modified_at_raw}" -u +"%Y-%m-%dT%H:%M:%SZ" )"
@@ -210,12 +220,18 @@ generate_component_inventory_json() {
   trivy_db_checked_at_raw="$( trivy version -f json | jq -r .VulnerabilityDB.DownloadedAt )"
   trivy_db_checked_at="$( date -d "${trivy_db_checked_at_raw}" -u +"%Y-%m-%dT%H:%M:%SZ" )"
   govuln_ver="$( govulncheck -format json | jq -r .config.scanner_version )"
+  govuln_bin="$( which --skip-functions --skip-alias govulncheck )"
+  govuln_sha256="$( sha256sum "${govuln_bin}" | awk '{ print $1 }' )"
   govuln_db_source="$( govulncheck -format json | jq -r .config.db )"
   govuln_db_upstream_modified_at="$( govulncheck -format json | jq -r .config.db_last_modified )"
   govuln_db_checked_at="$( date -u +"%Y-%m-%dT%H:%M:%SZ" )"
   cyclonedx_gomod_ver="$( cyclonedx-gomod version | grep ^Version | awk '{ print $NF }' || true )"
+  cyclonedx_gomod_bin="$( which --skip-functions --skip-alias cyclonedx-gomod )"
+  cyclonedx_gomod_sha256="$( sha256sum "${cyclonedx_gomod_bin}" | awk '{ print $1 }' )"
   cyclonedx_gomod_modsum="$( cyclonedx-gomod version | grep ^ModuleSum | awk '{ print $NF }' || true )"
   syft_ver="$( syft version -o json | jq -r .version )"
+  syft_bin="$( which --skip-functions --skip-alias syft )"
+  syft_sha256="$( sha256sum "${syft_bin}" | awk '{ print $1 }' )"
   syft_commit="$( syft version -o json | jq -r .gitCommit )"
 
   # distribution info (set in build pipeline)
@@ -231,24 +247,32 @@ generate_component_inventory_json() {
     --arg version "$RELEASE_VERSION" \
     --arg build_id "$BUILD_ID" \
     --arg go_ver "$go_ver" \
+    --arg go_sha256 "$go_sha256" \
     --arg cosign_ver "$cosign_ver" \
+    --arg cosign_sha256 "$cosign_sha256" \
     --arg oras_ver "$oras_ver" \
+    --arg oras_sha256 "$oras_sha256" \
     --arg grype_ver "$grype_ver" \
+    --arg grype_sha256 "$grype_sha256" \
     --arg grype_db_source "$grype_db_source" \
     --arg grype_db_upstream_modified_at "$grype_db_upstream_modified_at" \
     --arg grype_db_checked_at "$grype_db_checked_at" \
     --arg trivy_ver "$trivy_ver" \
+    --arg trivy_sha256 "$trivy_sha256" \
     --arg trivy_db_source "$trivy_db_source" \
     --arg trivy_db_upstream_modified_at "$trivy_db_upstream_modified_at" \
     --arg trivy_db_checked_at "$trivy_db_checked_at" \
     --arg govulncheck_ver "$govuln_ver" \
+    --arg govulncheck_sha256 "$govuln_sha256" \
     --arg govulncheck_db_source "$govuln_db_source" \
     --arg govulncheck_db_upstream_modified_at "$govuln_db_upstream_modified_at" \
     --arg govulncheck_db_checked_at "$govuln_db_checked_at" \
     --arg cyclonedx_gomod_ver "$cyclonedx_gomod_ver" \
+    --arg cyclonedx_gomod_sha256 "$cyclonedx_gomod_sha256" \
     --arg cyclonedx_gomod_modsum "$cyclonedx_gomod_modsum" \
     --arg bucket "$bucket" \
     --arg syft_ver "$syft_ver" \
+    --arg syft_sha256 "$syft_sha256" \
     --arg syft_commit "$syft_commit" \
     --arg prefix "$prefix" \
     --arg component "$component" \
@@ -271,52 +295,60 @@ generate_component_inventory_json() {
       oci: (if ($oci_summary|type=="object" and ($oci_summary|keys|length)>0) then $oci_summary else null end),
       tooling:{
         go:{
-          version:$go_ver,
+          version: $go_ver,
+          sha256: $go_sha256,
           category: "toolchain",
         },
         cosign:{
-          version:$cosign_ver,
+          version: $cosign_ver,
+          sha256: $cosign_sha256,
           category: "signing-tool",
         },
         oras:{
-          version:$oras_ver,
+          version: $oras_ver,
+          sha256: $oras_sha256,
           category: "artifact-uploader"
         },
         grype:{
-          version:$grype_ver,
+          version: $grype_ver,
+          sha256: $grype_sha256,
           category: "vuln-scanner",
           db:{
-            source:$grype_db_source,
-            upstream_modified_at:$grype_db_upstream_modified_at,
-            checked_at:$grype_db_checked_at
+            source: $grype_db_source,
+            upstream_modified_at: $grype_db_upstream_modified_at,
+            checked_at: $grype_db_checked_at
           }
         },
         trivy:{
-          version:$trivy_ver,
+          version: $trivy_ver,
+          sha256: $trivy_sha256,
           category: "vuln-scanner",
           db:{
-            source:$trivy_db_source,
-            upstream_modified_at:$trivy_db_upstream_modified_at,
-            checked_at:$trivy_db_checked_at
+            source: $trivy_db_source,
+            upstream_modified_at: $trivy_db_upstream_modified_at,
+            checked_at: $trivy_db_checked_at
           }
         },
         govulncheck:{
-          version:$govulncheck_ver,
+          version: $govulncheck_ver,
+          sha256: $govulncheck_sha256,
           category: "vuln-scanner",
           db:{
-            source:$govulncheck_db_source,
-            upstream_modified_at:$govulncheck_db_upstream_modified_at,
-            checked_at:$govulncheck_db_checked_at
+            source: $govulncheck_db_source,
+            upstream_modified_at: $govulncheck_db_upstream_modified_at,
+            checked_at: $govulncheck_db_checked_at
           }
         },
         syft:{
-          version:$syft_ver,
-          commit:$syft_commit,
+          version: $syft_ver,
+          sha256: $syft_sha256,
+          commit: $syft_commit,
           category: "sbom-generator"
         },
         cyclonedx_gomod:{
-          version:$cyclonedx_gomod_ver,
-          modsum:$cyclonedx_gomod_modsum,
+          version: $cyclonedx_gomod_ver,
+          sha256: $cyclonedx_gomod_sha256,
+          modsum: $cyclonedx_gomod_modsum,
           category: "sbom-generator"
         },
       },
